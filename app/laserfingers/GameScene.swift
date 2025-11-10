@@ -13,13 +13,13 @@ final class LaserGameScene: SKScene {
     private let session: GameSession
     private let settings: GameSettings
     
-    private var buttonNode: ChargeButtonNode?
-    private var lasers: [LaserEmitterNode] = []
+    private var buttonNodes: [ChargeButtonNode] = []
+    private var lasers: [LaserNode] = []
     private var fingerSprites: [UITouch: FingerSprite] = [:]
     private var progress: CGFloat = 0
     private var lastUpdateTime: TimeInterval = 0
     
-    private let fillRate: CGFloat
+    private let fallbackChargeRate: CGFloat
     private let drainRate: CGFloat = 0.18
     private let zapCooldown: TimeInterval = 0.45
     
@@ -27,7 +27,8 @@ final class LaserGameScene: SKScene {
         self.level = level
         self.session = session
         self.settings = settings
-        self.fillRate = 0.18 + CGFloat(level.difficulty) * 0.025
+        let averageDuration = max(CGFloat(level.averageChargeDuration), 0.25)
+        self.fallbackChargeRate = 1.0 / averageDuration
         super.init(size: CGSize(width: 1920, height: 1080))
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 8/255, green: 9/255, blue: 20/255, alpha: 1)
@@ -38,7 +39,7 @@ final class LaserGameScene: SKScene {
     }
     
     override func didMove(to view: SKView) {
-        if buttonNode == nil {
+        if buttonNodes.isEmpty {
             buildScene()
         }
         session.status = .running
@@ -52,8 +53,11 @@ final class LaserGameScene: SKScene {
     
     private func buildScene() {
         removeAllChildren()
+        fingerSprites.removeAll()
+        progress = 0
+        session.fillPercentage = 0
         addBackground()
-        addButton()
+        addButtons()
         spawnLasers()
     }
     
@@ -70,49 +74,120 @@ final class LaserGameScene: SKScene {
         addChild(glow)
     }
     
-    private func addButton() {
-        let diameter = min(size.width, size.height) * 0.28
-        let button = ChargeButtonNode(diameter: diameter)
-        button.position = CGPoint(x: frame.midX, y: frame.midY)
-        button.zPosition = 5
-        addChild(button)
-        buttonNode = button
+    private func addButtons() {
+        buttonNodes.forEach { $0.removeFromParent() }
+        buttonNodes.removeAll()
+        
+        let specs = level.buttons.isEmpty ? [
+            Level.Button(
+                id: "core",
+                shape: .circle,
+                position: .init(x: 0.5, y: 0.5),
+                size: 0.25,
+                fillColor: "#FF2E89",
+                glowColor: "#FF7FC0",
+                rimColor: "#FFFFFF",
+                timeToFull: 3.0
+            )
+        ] : level.buttons
+        
+        let reference = min(size.width, size.height)
+        buttonNodes = specs.map { spec in
+            let node = ChargeButtonNode(spec: spec, referenceLength: reference)
+            node.position = point(for: spec.position)
+            node.zPosition = 5
+            node.updateChargeProgress(progress)
+            addChild(node)
+            return node
+        }
     }
     
     private func spawnLasers() {
         lasers.forEach { $0.removeFromParent() }
         lasers.removeAll()
         
-        let count = max(1, min(4, level.difficulty))
-        for index in 0..<count {
-            let orientation: LaserEmitterNode.Orientation
-            switch (index + level.difficulty) % 3 {
-            case 0: orientation = .horizontal
-            case 1: orientation = .vertical
-            default: orientation = .diagonal
-            }
-            let thickness: CGFloat = CGFloat(14 + (index * 3))
-            let length: CGFloat = orientation == .horizontal ? size.width * 1.4 : size.height * 1.4
-            let travel = min(size.width, size.height) * (orientation == .diagonal ? 0.25 : 0.35)
-            let color = SKColor(hue: 0.9 - CGFloat(index) * 0.1, saturation: 0.85, brightness: 1, alpha: 0.75)
-            let node = LaserEmitterNode(
-                orientation: orientation,
-                length: length,
-                thickness: thickness,
-                travel: travel,
-                duration: 2.4 + Double(index) * 0.45,
-                color: color
-            )
-            node.position = defaultLaserPosition(for: orientation, index: index, total: count)
+        guard !level.lasers.isEmpty else {
+            spawnLegacyLasers()
+            return
+        }
+        
+        for (index, spec) in level.lasers.enumerated() {
+            guard let node = makeLaserNode(from: spec) else { continue }
             addChild(node)
-            node.startAnimating(phase: Double(index) * 0.35)
+            node.activate(phase: spec.phase ?? Double(index) * 0.35)
             lasers.append(node)
         }
     }
     
-    private func defaultLaserPosition(for orientation: LaserEmitterNode.Orientation, index: Int, total: Int) -> CGPoint {
-        let fraction = CGFloat(index + 1) / CGFloat(total + 1)
-        switch orientation {
+    private func spawnLegacyLasers() {
+        let count = max(1, min(4, level.difficulty))
+        for index in 0..<count {
+            let axis: Level.Laser.Axis
+            switch (index + level.difficulty) % 3 {
+            case 0: axis = .horizontal
+            case 1: axis = .vertical
+            default: axis = .diagonal
+            }
+            let color = SKColor(hue: 0.9 - CGFloat(index) * 0.1, saturation: 0.85, brightness: 1, alpha: 0.75)
+            let node = SweepingLaserNode(
+                axis: axis,
+                length: sweepLength(for: axis),
+                thickness: min(size.width, size.height) * 0.015,
+                travel: min(size.width, size.height) * (axis == .diagonal ? 0.25 : 0.35),
+                duration: 2.4 + Double(index) * 0.45,
+                color: color
+            )
+            node.position = sweepPosition(for: axis, offset: CGFloat(index + 1) / CGFloat(count + 1))
+            addChild(node)
+            node.activate(phase: Double(index) * 0.35)
+            lasers.append(node)
+        }
+    }
+    
+    private func makeLaserNode(from spec: Level.Laser) -> LaserNode? {
+        let color = SKColor.fromHex(spec.color, alpha: 0.75)
+        let minDimension = min(size.width, size.height)
+        switch spec.type {
+        case .sweep:
+            let axis = spec.axis ?? .horizontal
+            let node = SweepingLaserNode(
+                axis: axis,
+                length: sweepLength(for: axis),
+                thickness: max(spec.thickness, 0.01) * minDimension,
+                travel: max(spec.travel ?? 0.25, 0.05) * minDimension,
+                duration: max(spec.speed, 0.4),
+                color: color
+            )
+            node.position = sweepPosition(for: axis, offset: spec.offset ?? 0.5)
+            return node
+        case .rotate:
+            guard let center = spec.center else { return nil }
+            let node = RotatingLaserNode(
+                radius: max(spec.radius ?? 0.3, 0.1) * minDimension,
+                thickness: max(spec.thickness, 0.01) * minDimension,
+                duration: max(spec.speed, 0.4),
+                color: color,
+                clockwise: spec.direction != .counterclockwise
+            )
+            node.position = point(for: center)
+            return node
+        }
+    }
+    
+    private func sweepLength(for axis: Level.Laser.Axis) -> CGFloat {
+        switch axis {
+        case .horizontal:
+            return size.width * 1.4
+        case .vertical:
+            return size.height * 1.4
+        case .diagonal:
+            return hypot(size.width, size.height)
+        }
+    }
+    
+    private func sweepPosition(for axis: Level.Laser.Axis, offset: CGFloat) -> CGPoint {
+        let fraction = offset.clamped(to: 0...1)
+        switch axis {
         case .horizontal:
             return CGPoint(x: frame.midX, y: frame.minY + fraction * frame.height)
         case .vertical:
@@ -122,8 +197,17 @@ final class LaserGameScene: SKScene {
         }
     }
     
+    private func point(for coordinate: Level.Coordinate) -> CGPoint {
+        CGPoint(
+            x: frame.minX + coordinate.x.clamped(to: 0...1) * frame.width,
+            y: frame.minY + coordinate.y.clamped(to: 0...1) * frame.height
+        )
+    }
+    
     private func layoutScene() {
-        buttonNode?.position = CGPoint(x: frame.midX, y: frame.midY)
+        for button in buttonNodes {
+            button.position = point(for: button.spec.position)
+        }
     }
     
     // MARK: - Touch Handling
@@ -133,9 +217,9 @@ final class LaserGameScene: SKScene {
         for touch in touches {
             guard fingerSprites.count < max(1, session.touchAllowance) else { continue }
             let location = touch.location(in: self)
-            let sprite = makeFingerSprite(at: location)
-            addChild(sprite.node)
-            var data = FingerSprite(node: sprite.node, isPressingButton: isTouchOnButton(location), lastZapTime: 0)
+            let node = makeFingerSprite(at: location)
+            addChild(node)
+            var data = FingerSprite(node: node, activeButton: button(at: location), lastZapTime: 0)
             data.node.alpha = 0.0
             data.node.run(SKAction.fadeAlpha(to: 1.0, duration: 0.1))
             fingerSprites[touch] = data
@@ -149,7 +233,7 @@ final class LaserGameScene: SKScene {
             guard var sprite = fingerSprites[touch] else { continue }
             let location = touch.location(in: self)
             sprite.node.position = location
-            sprite.isPressingButton = isTouchOnButton(location)
+            sprite.activeButton = button(at: location)
             fingerSprites[touch] = sprite
         }
     }
@@ -173,7 +257,7 @@ final class LaserGameScene: SKScene {
         session.activeTouches = fingerSprites.count
     }
     
-    private func makeFingerSprite(at point: CGPoint) -> FingerSprite {
+    private func makeFingerSprite(at point: CGPoint) -> SKShapeNode {
         let radius: CGFloat = 22
         let node = SKShapeNode(circleOfRadius: radius)
         node.fillColor = SKColor.white.withAlphaComponent(0.25)
@@ -182,12 +266,11 @@ final class LaserGameScene: SKScene {
         node.position = point
         node.zPosition = 20
         node.glowWidth = 4
-        return FingerSprite(node: node, isPressingButton: false, lastZapTime: 0)
+        return node
     }
     
-    private func isTouchOnButton(_ point: CGPoint) -> Bool {
-        guard let buttonNode else { return false }
-        return buttonNode.contains(point, in: self)
+    private func button(at point: CGPoint) -> ChargeButtonNode? {
+        buttonNodes.first { $0.contains(point, in: self) }
     }
     
     // MARK: - Game Loop
@@ -200,18 +283,29 @@ final class LaserGameScene: SKScene {
         let delta = min(currentTime - lastUpdateTime, 1 / 20)
         lastUpdateTime = currentTime
         
-        let pressingCount = fingerSprites.reduce(0) { partialResult, entry in
-            partialResult + (entry.value.isPressingButton ? 1 : 0)
+        let pressingCount = fingerSprites.values.reduce(0) { partialResult, sprite in
+            partialResult + (sprite.activeButton == nil ? 0 : 1)
         }
-        buttonNode?.updatePressIntensity(pressingCount: pressingCount, maxTouches: max(1, session.touchAllowance))
         
-        if pressingCount > 0 {
-            progress += fillRate * CGFloat(delta)
+        var totalChargeRate: CGFloat = fingerSprites.values.reduce(0) { partialResult, sprite in
+            guard let button = sprite.activeButton else { return partialResult }
+            return partialResult + button.chargeRate
+        }
+        if totalChargeRate == 0, pressingCount > 0 {
+            totalChargeRate = fallbackChargeRate
+        }
+        
+        if totalChargeRate > 0 {
+            progress += totalChargeRate * CGFloat(delta)
         } else {
             progress -= drainRate * CGFloat(delta)
         }
         progress = progress.clamped(to: 0...1)
-        buttonNode?.updateProgress(progress)
+        for button in buttonNodes {
+            let presses = fingerSprites.values.filter { $0.activeButton === button }.count
+            button.updatePressIntensity(pressingCount: presses, maxTouches: max(1, session.touchAllowance))
+            button.updateChargeProgress(progress)
+        }
         session.fillPercentage = progress
         
         checkLaserHits(currentTime: currentTime)
@@ -256,7 +350,7 @@ final class LaserGameScene: SKScene {
         guard session.status == .running else { return }
         session.status = .won
         isUserInteractionEnabled = false
-        buttonNode?.celebrate()
+        buttonNodes.forEach { $0.celebrate() }
     }
     
     private func failLevel() {
@@ -272,10 +366,24 @@ final class LaserGameScene: SKScene {
     }
 }
 
+extension LaserGameScene {
+    func setScenePaused(_ paused: Bool) {
+        isPaused = paused
+        isUserInteractionEnabled = !paused && session.status == .running
+    }
+}
+
+private typealias LaserNode = SKNode & LaserObstacle
+
+private protocol LaserObstacle: AnyObject {
+    func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool
+    func activate(phase: TimeInterval)
+}
+
 // MARK: - Menu Background
 
 final class MenuBackgroundScene: SKScene {
-    private var lasers: [LaserEmitterNode] = []
+    private var lasers: [LaserNode] = []
     
     override init() {
         super.init(size: CGSize(width: 1920, height: 1080))
@@ -301,10 +409,10 @@ final class MenuBackgroundScene: SKScene {
         addChild(gradient)
         
         lasers = (0..<3).map { index in
-            let orientation: LaserEmitterNode.Orientation = index % 2 == 0 ? .horizontal : .vertical
-            let node = LaserEmitterNode(
-                orientation: orientation,
-                length: orientation == .horizontal ? size.width * 1.3 : size.height * 1.3,
+            let axis: Level.Laser.Axis = index % 2 == 0 ? .horizontal : .vertical
+            let node = SweepingLaserNode(
+                axis: axis,
+                length: axis == .horizontal ? size.width * 1.3 : size.height * 1.3,
                 thickness: 18,
                 travel: min(size.width, size.height) * 0.4,
                 duration: 4 + Double(index),
@@ -312,7 +420,7 @@ final class MenuBackgroundScene: SKScene {
             )
             node.position = CGPoint(x: frame.midX, y: frame.midY)
             addChild(node)
-            node.startAnimating(phase: Double(index) * 0.8)
+            node.activate(phase: Double(index) * 0.8)
             return node
         }
         
@@ -336,7 +444,7 @@ final class MenuBackgroundScene: SKScene {
 
 private struct FingerSprite {
     let node: SKShapeNode
-    var isPressingButton: Bool
+    var activeButton: ChargeButtonNode?
     var lastZapTime: TimeInterval
 }
 
@@ -344,26 +452,29 @@ private final class ChargeButtonNode: SKNode {
     private let outline: SKShapeNode
     private let fillNode: SKShapeNode
     private let glowNode: SKShapeNode
-    private let radius: CGFloat
+    let spec: Level.Button
+    let chargeRate: CGFloat
     
-    init(diameter: CGFloat) {
-        self.radius = diameter / 2
-        outline = SKShapeNode(circleOfRadius: diameter / 2)
-        outline.lineWidth = 6
-        outline.strokeColor = SKColor.white.withAlphaComponent(0.7)
-        outline.fillColor = SKColor.black.withAlphaComponent(0.4)
+    init(spec: Level.Button, referenceLength: CGFloat) {
+        self.spec = spec
+        let size = max(spec.size, 0.1) * referenceLength
+        outline = ChargeButtonNode.makeShape(shape: spec.shape, size: size, inset: 0)
+        fillNode = ChargeButtonNode.makeShape(shape: spec.shape, size: size * 0.55, inset: 0)
+        glowNode = ChargeButtonNode.makeShape(shape: spec.shape, size: size * 1.05, inset: 0)
+        chargeRate = 1.0 / CGFloat(max(spec.timeToFull, 0.15))
+        super.init()
+        outline.lineWidth = size * 0.04
+        outline.strokeColor = SKColor.fromHex(spec.rimColor ?? "#FFFFFF", alpha: 0.8)
+        outline.fillColor = SKColor.black.withAlphaComponent(0.45)
         
-        fillNode = SKShapeNode(circleOfRadius: diameter * 0.35)
-        fillNode.fillColor = SKColor.systemGreen
+        fillNode.fillColor = SKColor.fromHex(spec.fillColor)
         fillNode.strokeColor = .clear
         fillNode.yScale = 0
         
-        glowNode = SKShapeNode(circleOfRadius: diameter * 0.4)
-        glowNode.fillColor = SKColor.systemPink.withAlphaComponent(0.3)
+        glowNode.fillColor = SKColor.fromHex(spec.glowColor ?? spec.fillColor, alpha: 0.35)
         glowNode.strokeColor = .clear
         glowNode.alpha = 0.1
         
-        super.init()
         addChild(glowNode)
         addChild(outline)
         addChild(fillNode)
@@ -373,7 +484,7 @@ private final class ChargeButtonNode: SKNode {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func updateProgress(_ progress: CGFloat) {
+    func updateChargeProgress(_ progress: CGFloat) {
         fillNode.yScale = progress
         fillNode.alpha = 0.6 + 0.4 * progress
     }
@@ -393,36 +504,48 @@ private final class ChargeButtonNode: SKNode {
         let local = convert(point, from: scene)
         return outline.contains(local)
     }
+    
+    private static func makeShape(shape: Level.Button.Shape, size: CGFloat, inset: CGFloat) -> SKShapeNode {
+        switch shape {
+        case .circle:
+            return SKShapeNode(circleOfRadius: max(size - inset, 2) / 2)
+        case .square:
+            let edge = max(size - inset, 4)
+            return SKShapeNode(rectOf: CGSize(width: edge, height: edge), cornerRadius: edge * 0.12)
+        case .capsule:
+            let width = max(size - inset, 4)
+            let height = width * 0.55
+            return SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: height / 2)
+        }
+    }
 }
 
-private final class LaserEmitterNode: SKNode {
-    enum Orientation {
-        case horizontal
-        case vertical
-        case diagonal
-    }
-    
-    private let orientation: Orientation
+private final class SweepingLaserNode: SKNode, LaserObstacle {
+    private let axis: Level.Laser.Axis
     private let travel: CGFloat
     private let duration: TimeInterval
     private let beam: SKShapeNode
     
-    init(orientation: Orientation, length: CGFloat, thickness: CGFloat, travel: CGFloat, duration: TimeInterval, color: SKColor) {
-        self.orientation = orientation
+    init(axis: Level.Laser.Axis, length: CGFloat, thickness: CGFloat, travel: CGFloat, duration: TimeInterval, color: SKColor) {
+        self.axis = axis
         self.travel = travel
         self.duration = duration
-        let size = orientation == .horizontal
-            ? CGSize(width: length, height: thickness)
-            : CGSize(width: thickness, height: length)
+        let size: CGSize
+        switch axis {
+        case .horizontal:
+            size = CGSize(width: length, height: thickness)
+        case .vertical:
+            size = CGSize(width: thickness, height: length)
+        case .diagonal:
+            size = CGSize(width: length, height: thickness)
+        }
         beam = SKShapeNode(rectOf: size, cornerRadius: thickness / 2)
         beam.fillColor = color
         beam.strokeColor = color.withAlphaComponent(0.8)
         beam.glowWidth = thickness * 0.8
         super.init()
-        if orientation == .diagonal {
+        if axis == .diagonal {
             beam.zRotation = .pi / 4
-            beam.xScale = 1.2
-            beam.yScale = 1.2
         }
         addChild(beam)
     }
@@ -431,13 +554,13 @@ private final class LaserEmitterNode: SKNode {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func startAnimating(phase: TimeInterval = 0) {
+    func activate(phase: TimeInterval = 0) {
         let vector = movementVector()
         let forward = SKAction.moveBy(x: vector.dx, y: vector.dy, duration: duration / 2)
         let backward = forward.reversed()
         let loop = SKAction.sequence([forward, backward])
-        let delayedLoop = SKAction.sequence([SKAction.wait(forDuration: phase), SKAction.repeatForever(loop)])
-        run(delayedLoop, withKey: "patrol")
+        let start = SKAction.wait(forDuration: max(phase, 0))
+        run(SKAction.sequence([start, SKAction.repeatForever(loop)]), withKey: "patrol")
     }
     
     func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
@@ -446,7 +569,7 @@ private final class LaserEmitterNode: SKNode {
     }
     
     private func movementVector() -> CGVector {
-        switch orientation {
+        switch axis {
         case .horizontal:
             return CGVector(dx: 0, dy: travel)
         case .vertical:
@@ -455,6 +578,41 @@ private final class LaserEmitterNode: SKNode {
             let component = travel / sqrt(2)
             return CGVector(dx: component, dy: component)
         }
+    }
+}
+
+private final class RotatingLaserNode: SKNode, LaserObstacle {
+    private let beam: SKShapeNode
+    private let duration: TimeInterval
+    private let clockwise: Bool
+    
+    init(radius: CGFloat, thickness: CGFloat, duration: TimeInterval, color: SKColor, clockwise: Bool) {
+        self.duration = duration
+        self.clockwise = clockwise
+        beam = SKShapeNode(rectOf: CGSize(width: thickness, height: radius), cornerRadius: thickness / 2)
+        beam.position = CGPoint(x: 0, y: radius / 2)
+        beam.fillColor = color
+        beam.strokeColor = color.withAlphaComponent(0.8)
+        beam.glowWidth = thickness * 0.9
+        super.init()
+        addChild(beam)
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    func activate(phase: TimeInterval = 0) {
+        let direction: CGFloat = clockwise ? -1 : 1
+        let normalizedPhase = CGFloat((phase / duration).truncatingRemainder(dividingBy: 1))
+        zRotation = direction * normalizedPhase * (.pi * 2)
+        let rotation = SKAction.rotate(byAngle: direction * (.pi * 2), duration: duration)
+        run(SKAction.repeatForever(rotation), withKey: "spin")
+    }
+    
+    func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
+        let localPoint = convert(scenePoint, from: scene)
+        return beam.contains(localPoint)
     }
 }
 

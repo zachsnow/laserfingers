@@ -18,6 +18,7 @@ struct LaserfingersApp: App {
             RootContainerView()
                 .environmentObject(coordinator)
         }
+        .defaultAppStorage(UserDefaults.standard)
     }
 }
 
@@ -40,7 +41,8 @@ final class AppCoordinator: ObservableObject {
     private let levels: [Level]
     
     init() {
-        self.levels = Level.demoLevels
+        let loadedLevels = LevelRepository.load()
+        self.levels = loadedLevels.isEmpty ? Level.fallback : loadedLevels
         self.levelProgress = levels.enumerated().map { index, level in
             LevelProgress(level: level, state: index == 0 ? .current : .locked)
         }
@@ -75,12 +77,27 @@ final class AppCoordinator: ObservableObject {
         screen = .gameplay
     }
     
+    func pauseGame() {
+        guard let runtime = activeGame,
+              runtime.session.status == .running else { return }
+        runtime.session.status = .paused
+        runtime.scene.setScenePaused(true)
+    }
+    
+    func resumeGame() {
+        guard let runtime = activeGame,
+              runtime.session.status == .paused else { return }
+        runtime.session.status = .running
+        runtime.scene.setScenePaused(false)
+    }
+    
     func retryActiveLevel() {
         guard let level = activeGame?.level else { return }
         startLevel(level)
     }
     
     func exitGameplay() {
+        activeGame?.scene.setScenePaused(false)
         activeGame = nil
         screen = .levelSelect
     }
@@ -112,12 +129,14 @@ final class AppCoordinator: ObservableObject {
     }
     
     private func recordVictory(for level: Level) {
-        guard let idx = levelProgress.firstIndex(where: { $0.level == level }) else { return }
-        if levelProgress[idx].state != .completed {
-            levelProgress[idx].state = .completed
-            if idx + 1 < levelProgress.count && levelProgress[idx + 1].state == .locked {
-                levelProgress[idx + 1].state = .current
+        guard let idx = levelProgress.firstIndex(where: { $0.level.id == level.id }) else { return }
+        var updated = levelProgress
+        if updated[idx].state != .completed {
+            updated[idx].state = .completed
+            if idx + 1 < updated.count && updated[idx + 1].state == .locked {
+                updated[idx + 1].state = .current
             }
+            levelProgress = updated
         }
     }
 }
@@ -131,22 +150,6 @@ struct GameRuntime {
 struct GameSettings {
     var soundEnabled: Bool = true
     var hapticsEnabled: Bool = true
-}
-
-struct Level: Identifiable, Hashable, Equatable {
-    let id: Int
-    let title: String
-    let description: String
-    let allowedTouches: Int
-    let difficulty: Int
-    
-    static let demoLevels: [Level] = [
-        Level(id: 1, title: "Warmup Beam", description: "One patient laser sweeping across the charge button.", allowedTouches: 3, difficulty: 1),
-        Level(id: 2, title: "Crossfire", description: "Twin beams force you to juggle timing.", allowedTouches: 3, difficulty: 2),
-        Level(id: 3, title: "Lockstep", description: "Lasers rotate around the core button.", allowedTouches: 2, difficulty: 3),
-        Level(id: 4, title: "Pulse Storm", description: "Fast pulses punish greedy presses.", allowedTouches: 2, difficulty: 4),
-        Level(id: 5, title: "Final Gate", description: "Dense rotating pattern with limited touches.", allowedTouches: 1, difficulty: 5)
-    ]
 }
 
 struct LevelProgress: Identifiable {
@@ -171,6 +174,7 @@ final class GameSession: ObservableObject {
     enum Status {
         case loading
         case running
+        case paused
         case won
         case lost
     }

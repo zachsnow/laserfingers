@@ -217,11 +217,18 @@ struct GameplayView: View {
     
     var body: some View {
         ZStack {
-            SpriteView(scene: runtime.scene)
+            GameSpriteView(scene: runtime.scene)
+                .id(runtime.level.id)
                 .ignoresSafeArea()
             VStack {
-                GameHUDView(session: session)
-                    .padding()
+                HStack(alignment: .top) {
+                    GameHUDView(session: session)
+                    Spacer()
+                    PauseButton(isEnabled: session.status == .running) {
+                        coordinator.pauseGame()
+                    }
+                }
+                .padding()
                 Spacer()
             }
             overlayView
@@ -235,6 +242,11 @@ struct GameplayView: View {
             lostOverlay
         case .won:
             winOverlay
+        case .paused:
+            PauseOverlay(
+                resumeAction: coordinator.resumeGame,
+                exitAction: coordinator.exitGameplay
+            )
         default:
             EmptyView()
         }
@@ -325,6 +337,61 @@ struct ResultOverlay: View {
             .background(Color.black.opacity(0.85))
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
+    }
+}
+
+struct PauseOverlay: View {
+    let resumeAction: () -> Void
+    let exitAction: () -> Void
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.65).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text("Paused")
+                    .font(.largeTitle.bold())
+                Text("Take a breath, lasers will wait.")
+                    .foregroundColor(.white.opacity(0.8))
+                HStack(spacing: 16) {
+                    Button(action: resumeAction) {
+                        Label("Resume", systemImage: "play.fill")
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    
+                    Button(action: exitAction) {
+                        Label("Exit", systemImage: "rectangle.portrait.and.arrow.right")
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: 380)
+            }
+            .padding(32)
+            .background(Color.black.opacity(0.8))
+            .cornerRadius(24)
+            .shadow(color: .black.opacity(0.4), radius: 20)
+            .padding()
+        }
+    }
+}
+
+struct PauseButton: View {
+    let isEnabled: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "pause.circle.fill")
+                .font(.system(size: 36))
+                .foregroundColor(isEnabled ? .white : .gray)
+                .padding(8)
+        }
+        .disabled(!isEnabled)
+        .background(Color.white.opacity(0.1))
+        .clipShape(Circle())
     }
 }
 

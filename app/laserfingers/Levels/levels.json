@@ -1,0 +1,206 @@
+{
+  "levels": [
+    {
+      "id": 1,
+      "title": "Warmup Gate",
+      "description": "One central core with gentle opposing sweeps.",
+      "allowedTouches": 2,
+      "difficulty": 1,
+      "buttons": [
+        {
+          "id": "core",
+          "shape": "circle",
+          "position": { "x": 0.5, "y": 0.5 },
+          "size": 0.25,
+          "fillColor": "#FF2E89",
+          "glowColor": "#FF7FC0",
+          "rimColor": "#FFFFFF",
+          "timeToFull": 3.0
+        }
+      ],
+      "lasers": [
+        {
+          "id": "sweep-east",
+          "type": "sweep",
+          "color": "#24D8FF",
+          "speed": 3.2,
+          "thickness": 0.02,
+          "travel": 0.32,
+          "offset": 0.5,
+          "axis": "horizontal",
+          "phase": 0
+        },
+        {
+          "id": "sweep-north",
+          "type": "sweep",
+          "color": "#FFC857",
+          "speed": 2.6,
+          "thickness": 0.018,
+          "travel": 0.25,
+          "offset": 0.5,
+          "axis": "vertical",
+          "phase": 0.8
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Crossfire",
+      "description": "Dual buttons split the charge while rotating beam patrols the middle.",
+      "allowedTouches": 2,
+      "difficulty": 2,
+      "buttons": [
+        {
+          "id": "left",
+          "shape": "capsule",
+          "position": { "x": 0.35, "y": 0.5 },
+          "size": 0.22,
+          "fillColor": "#A454FF",
+          "glowColor": "#E0B3FF",
+          "rimColor": "#FFFFFF",
+          "timeToFull": 2.4
+        },
+        {
+          "id": "right",
+          "shape": "capsule",
+          "position": { "x": 0.65, "y": 0.5 },
+          "size": 0.22,
+          "fillColor": "#FF5EA0",
+          "glowColor": "#FFC1DC",
+          "rimColor": "#FFFFFF",
+          "timeToFull": 2.4
+        }
+      ],
+      "lasers": [
+        {
+          "id": "sweep-low",
+          "type": "sweep",
+          "color": "#3DE8FF",
+          "speed": 2.4,
+          "thickness": 0.02,
+          "travel": 0.35,
+          "offset": 0.35,
+          "axis": "horizontal",
+          "phase": 0
+        },
+        {
+          "id": "sweep-high",
+          "type": "sweep",
+          "color": "#FF7043",
+          "speed": 2.0,
+          "thickness": 0.02,
+          "travel": 0.35,
+          "offset": 0.65,
+          "axis": "horizontal",
+          "phase": 1.1
+        },
+        {
+          "id": "rotor-core",
+          "type": "rotate",
+          "color": "#F9F871",
+          "speed": 2.8,
+          "thickness": 0.018,
+          "radius": 0.32,
+          "center": { "x": 0.5, "y": 0.5 },
+          "direction": "clockwise",
+          "phase": 0
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Pulse Storm",
+      "description": "Four corner buttons with staggered sweeps and a fast spinner.",
+      "allowedTouches": 3,
+      "difficulty": 3,
+      "buttons": [
+        {
+          "id": "nw",
+          "shape": "square",
+          "position": { "x": 0.35, "y": 0.65 },
+          "size": 0.18,
+          "fillColor": "#45FFC2",
+          "glowColor": "#C6FFE8",
+          "rimColor": "#FFFFFF",
+          "timeToFull": 2.2
+        },
+        {
+          "id": "ne",
+          "shape": "square",
+          "position": { "x": 0.65, "y": 0.65 },
+          "size": 0.18,
+          "fillColor": "#FF8DD0",
+          "glowColor": "#FFD1EC",
+          "rimColor": "#FFFFFF",
+          "timeToFull": 2.2
+        },
+        {
+          "id": "sw",
+          "shape": "square",
+          "position": { "x": 0.35, "y": 0.35 },
+          "size": 0.18,
+          "fillColor": "#7ACBFF",
+          "glowColor": "#D1ECFF",
+          "rimColor": "#FFFFFF",
+          "timeToFull": 2.2
+        },
+        {
+          "id": "se",
+          "shape": "square",
+          "position": { "x": 0.65, "y": 0.35 },
+          "size": 0.18,
+          "fillColor": "#FFE066",
+          "glowColor": "#FFF1B3",
+          "rimColor": "#FFFFFF",
+          "timeToFull": 2.2
+        }
+      ],
+      "lasers": [
+        {
+          "id": "sweep-left",
+          "type": "sweep",
+          "color": "#4DE2FF",
+          "speed": 1.9,
+          "thickness": 0.02,
+          "travel": 0.4,
+          "offset": 0.35,
+          "axis": "vertical",
+          "phase": 0
+        },
+        {
+          "id": "sweep-right",
+          "type": "sweep",
+          "color": "#FFB347",
+          "speed": 1.9,
+          "thickness": 0.02,
+          "travel": 0.4,
+          "offset": 0.65,
+          "axis": "vertical",
+          "phase": 0.8
+        },
+        {
+          "id": "diagonal",
+          "type": "sweep",
+          "color": "#FF4DA6",
+          "speed": 2.5,
+          "thickness": 0.022,
+          "travel": 0.3,
+          "offset": 0.5,
+          "axis": "diagonal",
+          "phase": 1.4
+        },
+        {
+          "id": "spinner",
+          "type": "rotate",
+          "color": "#F9F871",
+          "speed": 1.6,
+          "thickness": 0.016,
+          "radius": 0.38,
+          "center": { "x": 0.5, "y": 0.5 },
+          "direction": "counterclockwise",
+          "phase": 0.4
+        }
+      ]
+    }
+  ]
+}
