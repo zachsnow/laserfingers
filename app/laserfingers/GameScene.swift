@@ -22,7 +22,7 @@ final class LaserGameScene: SKScene {
     private var fingerSprites: [UITouch: FingerSprite] = [:]
     private var lastUpdateTime: TimeInterval = 0
     private let alertOverlay: SKSpriteNode = {
-        let node = SKSpriteNode(color: SKColor(red: 1, green: 0.15, blue: 0.2, alpha: 1))
+        let node = SKSpriteNode(color: SKColor(red: 1, green: 0.15, blue: 0.2, alpha: 1), size: .zero)
         node.alpha = 0
         node.zPosition = 50
         node.blendMode = .add

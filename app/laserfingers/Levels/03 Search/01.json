@@ -1,0 +1,60 @@
+{
+  "id": "search-01",
+  "title": "Signal Sweep",
+  "description": "Track the moving beacon while dodging crossfire.",
+  "allowedTouches": 2,
+  "difficulty": 2,
+  "buttons": [],
+  "buttonClusters": [],
+  "buttonSets": [
+    {
+      "id": "search-core",
+      "mode": "any",
+      "kind": "charge",
+      "isDrainer": false,
+      "timeToFull": 1.9,
+      "fillColor": "#5EF0FF",
+      "glowColor": "#B7FBFF",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "search-pad",
+          "shape": "capsule",
+          "position": {
+            "x": 0.5,
+            "y": 0.55
+          },
+          "size": 0.28
+        }
+      ],
+      "controls": null,
+      "required": true
+    }
+  ],
+  "lasers": [
+    {
+      "id": "search-rotor",
+      "type": "rotate",
+      "color": "#F72585",
+      "speed": 2.4,
+      "thickness": 0.015,
+      "center": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 0.35,
+      "direction": "counterclockwise"
+    },
+    {
+      "id": "search-sweep",
+      "type": "sweep",
+      "color": "#7209B7",
+      "speed": 2.0,
+      "thickness": 0.018,
+      "travel": 0.22,
+      "offset": 0.45,
+      "axis": "horizontal",
+      "phase": 0.6
+    }
+  ]
+}

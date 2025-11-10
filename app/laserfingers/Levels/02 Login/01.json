@@ -1,5 +1,5 @@
 {
-  "id": 6,
+  "id": "login-01",
   "title": "Credential Check",
   "description": "Alternate between the login pads to verify access.",
   "allowedTouches": 2,

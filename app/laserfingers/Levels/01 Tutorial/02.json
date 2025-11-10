@@ -1,5 +1,5 @@
 {
-  "id": 2,
+  "id": "tutorial-02",
   "title": "Locker Twins",
   "description": "Two lockers charge independently.",
   "allowedTouches": 2,

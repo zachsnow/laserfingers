@@ -236,7 +236,8 @@ struct LevelPackSection: View {
     private var borderColor: Color {
         switch entry.state {
         case .completed: return .green.opacity(0.4)
-        case .incomplete: return .yellow.opacity(0.6)
+        case .inProgress: return .orange.opacity(0.6)
+        case .unlocked: return .yellow.opacity(0.6)
         case .locked: return .white.opacity(0.2)
         }
     }
@@ -266,9 +267,12 @@ struct LevelIconButton: View {
         case .completed:
             return Image(systemName: "checkmark.seal.fill")
                 .foregroundColor(.green)
-        case .incomplete:
+        case .unlocked:
             return Image(systemName: "arrowtriangle.right.circle.fill")
                 .foregroundColor(.yellow)
+        case .inProgress:
+            return Image(systemName: "clock.fill")
+                .foregroundColor(.orange)
         case .locked:
             return Image(systemName: "lock.fill")
                 .foregroundColor(.gray)
@@ -278,7 +282,8 @@ struct LevelIconButton: View {
     private var tileBackground: Color {
         switch entry.state {
         case .completed: return Color.green.opacity(0.15)
-        case .incomplete: return Color.yellow.opacity(0.15)
+        case .unlocked: return Color.yellow.opacity(0.15)
+        case .inProgress: return Color.orange.opacity(0.15)
         case .locked: return Color.white.opacity(0.08)
         }
     }

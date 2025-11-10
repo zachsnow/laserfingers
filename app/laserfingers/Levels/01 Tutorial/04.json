@@ -1,5 +1,5 @@
 {
-  "id": 4,
+  "id": "tutorial-04",
   "title": "Disjunction",
   "description": "Either pad can finish the gate.",
   "allowedTouches": 2,

@@ -1,0 +1,51 @@
+{
+  "id": "access-01",
+  "title": "Vault Request",
+  "description": "Feed the access wheel while a gate laser flickers.",
+  "allowedTouches": 2,
+  "difficulty": 2,
+  "buttons": [],
+  "buttonClusters": [],
+  "buttonSets": [
+    {
+      "id": "vault-ring",
+      "mode": "any",
+      "kind": "charge",
+      "isDrainer": true,
+      "timeToFull": 2.2,
+      "fillColor": "#90F1EF",
+      "glowColor": "#CFFFFF",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "vault-pad",
+          "shape": "square",
+          "position": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "size": 0.3
+        }
+      ],
+      "controls": null,
+      "required": true
+    }
+  ],
+  "lasers": [
+    {
+      "id": "vault-toggle",
+      "type": "segment",
+      "color": "#FB5607",
+      "thickness": 0.02,
+      "startPoint": {
+        "x": 0.3,
+        "y": 0.5
+      },
+      "endPoint": {
+        "x": 0.7,
+        "y": 0.5
+      },
+      "togglePeriod": 1.0
+    }
+  ]
+}

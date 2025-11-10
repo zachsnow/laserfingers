@@ -1,5 +1,5 @@
 {
-  "id": 1,
+  "id": "tutorial-01",
   "title": "Drainer Basics",
   "description": "Hold the circle or it drains immediately.",
   "allowedTouches": 10,

@@ -1,5 +1,5 @@
 {
-  "id": 5,
+  "id": "tutorial-05",
   "title": "Switch Control",
   "description": "Hold the switch to disable the segment, then fill the locker.",
   "allowedTouches": 2,

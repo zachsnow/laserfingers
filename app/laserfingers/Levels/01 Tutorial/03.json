@@ -1,5 +1,5 @@
 {
-  "id": 3,
+  "id": "tutorial-03",
   "title": "Conjunction",
   "description": "Press both pads together to charge.",
   "allowedTouches": 2,

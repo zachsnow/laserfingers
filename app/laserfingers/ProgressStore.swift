@@ -14,8 +14,30 @@ final class ProgressStore {
     }
     
     private struct StoredLevelProgress: Codable {
-        let levelId: Int
+        let levelId: String
         let state: LevelProgress.State
+        
+        private enum CodingKeys: String, CodingKey {
+            case levelId
+            case state
+        }
+        
+        init(levelId: String, state: LevelProgress.State) {
+            self.levelId = levelId
+            self.state = state
+        }
+        
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            if let stringId = try? container.decode(String.self, forKey: .levelId) {
+                levelId = stringId
+            } else if let intId = try? container.decode(Int.self, forKey: .levelId) {
+                levelId = String(intId)
+            } else {
+                levelId = ""
+            }
+            state = (try? container.decode(LevelProgress.State.self, forKey: .state)) ?? .locked
+        }
     }
     
     private let defaults: UserDefaults
@@ -43,7 +65,7 @@ final class ProgressStore {
     
     func loadProgress(for levels: [Level]) -> [LevelProgress] {
         let defaultProgress = levels.enumerated().map { index, level in
-            LevelProgress(level: level, state: index == 0 ? .incomplete : .locked)
+            LevelProgress(level: level, state: index == 0 ? .unlocked : .locked)
         }
         guard
             let data = defaults.data(forKey: Keys.progress),
@@ -53,7 +75,7 @@ final class ProgressStore {
         }
         let stateMap = Dictionary(uniqueKeysWithValues: stored.map { ($0.levelId, $0.state) })
         return levels.enumerated().map { index, level in
-            let fallbackState: LevelProgress.State = index == 0 ? .incomplete : .locked
+            let fallbackState: LevelProgress.State = index == 0 ? .unlocked : .locked
             let state = stateMap[level.id] ?? fallbackState
             return LevelProgress(level: level, state: state)
         }

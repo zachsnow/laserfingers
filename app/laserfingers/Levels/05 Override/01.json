@@ -1,0 +1,75 @@
+{
+  "id": "override-01",
+  "title": "Hijack Pair",
+  "description": "Hold the override pads while a rotor sweeps.",
+  "allowedTouches": 3,
+  "difficulty": 3,
+  "buttons": [],
+  "buttonClusters": [],
+  "buttonSets": [
+    {
+      "id": "override-north",
+      "mode": "any",
+      "kind": "charge",
+      "isDrainer": false,
+      "timeToFull": 1.5,
+      "fillColor": "#FFBE0B",
+      "glowColor": "#FFF3B0",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "override-top",
+          "shape": "circle",
+          "position": {
+            "x": 0.5,
+            "y": 0.7
+          },
+          "size": 0.18
+        }
+      ],
+      "controls": null,
+      "required": true
+    },
+    {
+      "id": "override-south",
+      "mode": "any",
+      "kind": "charge",
+      "isDrainer": false,
+      "timeToFull": 1.5,
+      "fillColor": "#8338EC",
+      "glowColor": "#E0B3FF",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "override-bottom",
+          "shape": "circle",
+          "position": {
+            "x": 0.5,
+            "y": 0.3
+          },
+          "size": 0.18
+        }
+      ],
+      "controls": null,
+      "required": true
+    }
+  ],
+  "lasers": [
+    {
+      "id": "override-rotor",
+      "type": "rotate",
+      "color": "#3A86FF",
+      "speed": 2.6,
+      "thickness": 0.016,
+      "center": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "radius": 0.4,
+      "direction": "clockwise"
+    }
+  ],
+  "unlocks": [
+    "override-02"
+  ]
+}

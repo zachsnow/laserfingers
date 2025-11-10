@@ -119,7 +119,7 @@ struct Level: Identifiable, Codable, Hashable {
         let togglePeriod: Double?
     }
     
-    let id: Int
+    let id: String
     let title: String
     let description: String
     let allowedTouches: Int
@@ -128,6 +128,7 @@ struct Level: Identifiable, Codable, Hashable {
     let buttonClusters: [ButtonCluster]?
     let buttonSets: [ButtonSet]?
     let lasers: [Laser]
+    let unlocks: [Int]?
 }
 
 extension Level {

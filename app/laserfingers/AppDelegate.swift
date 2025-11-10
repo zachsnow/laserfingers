@@ -87,7 +87,12 @@ final class AppCoordinator: ObservableObject {
     
     func startLevel(_ level: Level) {
         guard loadErrorMessage == nil else { return }
-        guard state(for: level) != .locked else { return }
+        guard let progressIndex = levelProgress.firstIndex(where: { $0.level.id == level.id }) else { return }
+        guard levelProgress[progressIndex].state != .locked else { return }
+        if levelProgress[progressIndex].state == .unlocked {
+            levelProgress[progressIndex].state = .inProgress
+            persistProgress()
+        }
         let session = GameSession(level: level, settings: settings)
         session.statusHandler = { [weak self] status in
             guard status == .won else { return }
@@ -137,6 +142,7 @@ final class AppCoordinator: ObservableObject {
     }
     
     func levelPackEntries() -> [LevelPackProgress] {
+        normalizePackUnlockStates()
         let progressMap = Dictionary(uniqueKeysWithValues: levelProgress.map { ($0.level.id, $0) })
         return levelPacks.map { pack in
             let entries = pack.levels.map { level in
@@ -162,6 +168,7 @@ final class AppCoordinator: ObservableObject {
         guard updated[idx].state != .completed else { return }
         updated[idx].state = .completed
         unlockNextLevel(from: idx, in: &updated)
+        unlockLevels(withIDs: level.unlocks ?? [], progress: &updated)
         unlockNextPackIfNeeded(afterCompleting: level, progress: &updated)
         levelProgress = updated
         persistProgress()
@@ -170,7 +177,7 @@ final class AppCoordinator: ObservableObject {
     private func unlockNextLevel(from index: Int, in progress: inout [LevelProgress]) {
         guard index + 1 < progress.count else { return }
         if progress[index + 1].state == .locked {
-            progress[index + 1].state = .incomplete
+            progress[index + 1].state = .unlocked
         }
     }
     
@@ -187,8 +194,18 @@ final class AppCoordinator: ObservableObject {
         for level in nextPack.levels {
             if let idx = progress.firstIndex(where: { $0.level.id == level.id }),
                progress[idx].state == .locked {
-                progress[idx].state = .incomplete
+                progress[idx].state = .unlocked
                 break
+            }
+        }
+    }
+    
+    private func unlockLevels(withIDs ids: [String], progress: inout [LevelProgress]) {
+        guard !ids.isEmpty else { return }
+        for targetID in ids {
+            guard let index = progress.firstIndex(where: { $0.level.id == targetID }) else { continue }
+            if progress[index].state == .locked {
+                progress[index].state = .unlocked
             }
         }
     }
@@ -196,7 +213,7 @@ final class AppCoordinator: ObservableObject {
     func resetProgress() {
         guard !levels.isEmpty else { return }
         levelProgress = levels.enumerated().map { index, level in
-            LevelProgress(level: level, state: index == 0 ? .incomplete : .locked)
+            LevelProgress(level: level, state: index == 0 ? .unlocked : .locked)
         }
         persistProgress()
         activeGame = nil
@@ -212,6 +229,45 @@ final class AppCoordinator: ObservableObject {
     private func persistProgress() {
         progressStore.saveProgress(levelProgress)
     }
+    
+    private func normalizePackUnlockStates() {
+        var updated = levelProgress
+        var changed = false
+        var previousPackCompleted = true
+        
+        for (index, pack) in levelPacks.enumerated() {
+            var packCompleted = true
+            var firstLockedLevelIndex: Int?
+            var hasProgress = false
+            
+            for level in pack.levels {
+                guard let progressIndex = updated.firstIndex(where: { $0.level.id == level.id }) else { continue }
+                let state = updated[progressIndex].state
+                if state != .locked {
+                    hasProgress = true
+                }
+                if state != .completed {
+                    packCompleted = false
+                    if firstLockedLevelIndex == nil {
+                        firstLockedLevelIndex = progressIndex
+                    }
+                }
+            }
+            
+            let isFirstPack = index == 0
+            let packUnlocked = isFirstPack || previousPackCompleted || hasProgress
+            if packUnlocked, let lockedIndex = firstLockedLevelIndex, updated[lockedIndex].state == .locked {
+                updated[lockedIndex].state = .unlocked
+                changed = true
+            }
+            previousPackCompleted = packCompleted
+        }
+        
+        if changed {
+            levelProgress = updated
+            persistProgress()
+        }
+    }
 }
 
 struct GameRuntime {
@@ -224,18 +280,18 @@ struct GameRuntime {
 struct LevelProgress: Identifiable {
     enum State: String, Codable {
         case locked
-        case incomplete
+        case unlocked
+        case inProgress
         case completed
         
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             let rawValue = try container.decode(String.self)
-            if rawValue == "current" {
-                self = .incomplete
-            } else if let state = State(rawValue: rawValue) {
-                self = state
-            } else {
-                self = .locked
+            switch rawValue {
+            case "current", "incomplete":
+                self = .unlocked
+            default:
+                self = State(rawValue: rawValue) ?? .locked
             }
         }
         
@@ -248,7 +304,7 @@ struct LevelProgress: Identifiable {
     let level: Level
     var state: State
     
-    var id: Int { level.id }
+    var id: String { level.id }
 }
 
 struct LevelPackProgress: Identifiable {
@@ -264,7 +320,8 @@ struct LevelPackProgress: Identifiable {
         guard !levels.isEmpty else { return .locked }
         if levels.allSatisfy({ $0.state == .locked }) { return .locked }
         if levels.allSatisfy({ $0.state == .completed }) { return .completed }
-        return .incomplete
+        if levels.contains(where: { $0.state == .inProgress }) { return .inProgress }
+        return .unlocked
     }
 }
 
