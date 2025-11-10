@@ -31,20 +31,31 @@ final class AppCoordinator: ObservableObject {
         case about
         case levelSelect
         case gameplay
+        case advancedMenu
     }
     
     @Published var screen: Screen = .mainMenu
-    @Published var settings = GameSettings()
+    @Published var settings: GameSettings {
+        didSet { progressStore.saveSettings(settings) }
+    }
     @Published private(set) var levelProgress: [LevelProgress]
     @Published var activeGame: GameRuntime?
+    @Published var loadErrorMessage: String?
     
+    private let progressStore = ProgressStore()
     private let levels: [Level]
     
     init() {
-        let loadedLevels = LevelRepository.load()
-        self.levels = loadedLevels.isEmpty ? Level.fallback : loadedLevels
-        self.levelProgress = levels.enumerated().map { index, level in
-            LevelProgress(level: level, state: index == 0 ? .current : .locked)
+        let storedSettings = progressStore.loadSettings()
+        self._settings = Published(initialValue: storedSettings)
+        do {
+            let loadedLevels = try LevelRepository.load()
+            self.levels = loadedLevels
+            self.levelProgress = progressStore.loadProgress(for: loadedLevels)
+        } catch {
+            self.levels = []
+            self.levelProgress = []
+            self.loadErrorMessage = String(describing: error)
         }
     }
     
@@ -60,11 +71,18 @@ final class AppCoordinator: ObservableObject {
         screen = .about
     }
     
+    func showAdvancedMenu() {
+        guard settings.advancedModeEnabled else { return }
+        screen = .advancedMenu
+    }
+    
     func showLevelSelect() {
+        guard loadErrorMessage == nil else { return }
         screen = .levelSelect
     }
     
     func startLevel(_ level: Level) {
+        guard loadErrorMessage == nil else { return }
         guard state(for: level) != .locked else { return }
         let session = GameSession(level: level, settings: settings)
         session.statusHandler = { [weak self] status in
@@ -137,7 +155,28 @@ final class AppCoordinator: ObservableObject {
                 updated[idx + 1].state = .current
             }
             levelProgress = updated
+            persistProgress()
         }
+    }
+    
+    func resetProgress() {
+        guard !levels.isEmpty else { return }
+        levelProgress = levels.enumerated().map { index, level in
+            LevelProgress(level: level, state: index == 0 ? .current : .locked)
+        }
+        persistProgress()
+        activeGame = nil
+        screen = .mainMenu
+    }
+    
+    func unlockAllLevels() {
+        guard !levels.isEmpty else { return }
+        levelProgress = levels.map { LevelProgress(level: $0, state: .completed) }
+        persistProgress()
+    }
+    
+    private func persistProgress() {
+        progressStore.saveProgress(levelProgress)
     }
 }
 
@@ -148,13 +187,8 @@ struct GameRuntime {
     let scene: LaserGameScene
 }
 
-struct GameSettings {
-    var soundEnabled: Bool = true
-    var hapticsEnabled: Bool = true
-}
-
 struct LevelProgress: Identifiable {
-    enum State {
+    enum State: String, Codable {
         case locked
         case current
         case completed
@@ -195,6 +229,7 @@ final class GameSession: ObservableObject {
     @Published var zapCount: Int = 0
     let soundEnabled: Bool
     let hapticsEnabled: Bool
+    let hasInfiniteSlots: Bool
     
     var statusHandler: ((Status) -> Void)?
     
@@ -204,14 +239,15 @@ final class GameSession: ObservableObject {
         self.initialTouchAllowance = level.allowedTouches
         self.soundEnabled = settings.soundEnabled
         self.hapticsEnabled = settings.hapticsEnabled
+        self.hasInfiniteSlots = settings.infiniteSlotsEnabled
     }
     
     func registerZap() -> Bool {
         guard status == .running else { return false }
         zapCount += 1
-        if touchAllowance > 0 {
+        if !hasInfiniteSlots, touchAllowance > 0 {
             touchAllowance -= 1
         }
-        return touchAllowance == 0
+        return !hasInfiniteSlots && touchAllowance == 0
     }
 }

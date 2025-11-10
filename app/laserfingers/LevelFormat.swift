@@ -95,8 +95,8 @@ struct Level: Identifiable, Codable, Hashable {
         let id: String
         let type: LaserType
         let color: String
-        /// Seconds for a full sweep/rotation cycle
-        let speed: Double
+        /// Seconds for a full sweep/rotation cycle (sweep/rotate only)
+        let speed: Double?
         /// Normalized beam thickness relative to the shortest scene edge
         let thickness: CGFloat
         /// Normalized magnitude for sweep travel
@@ -178,85 +178,6 @@ extension Level {
                 required: true
             )
         }
-        if derived.isEmpty {
-            return [
-                ButtonSet(
-                    id: "fallback-core",
-                    mode: .any,
-                    kind: .charge,
-                    isDrainer: false,
-                    timeToFull: 3.0,
-                    fillColor: "#FF2E89",
-                    glowColor: "#FF7FC0",
-                    rimColor: "#FFFFFF",
-                    pads: [
-                        ButtonPad(
-                            id: "fallback-pad",
-                            shape: .circle,
-                            position: .init(x: 0.5, y: 0.5),
-                            size: 0.25
-                        )
-                    ],
-                    controls: nil,
-                    required: true
-                )
-            ]
-        }
         return derived
-    }
-    
-    static var fallback: [Level] {
-        return [
-            Level(
-                id: 1,
-                title: "Warmup Beam",
-                description: "Single core button with opposing sweeps.",
-                allowedTouches: 2,
-                difficulty: 1,
-                buttons: [],
-                buttonClusters: nil,
-                buttonSets: [
-                    ButtonSet(
-                        id: "core",
-                        mode: .any,
-                        kind: .charge,
-                        isDrainer: false,
-                        timeToFull: 3.0,
-                        fillColor: "#FF2E89",
-                        glowColor: "#FF7FC0",
-                        rimColor: "#FFFFFF",
-                        pads: [
-                            ButtonPad(
-                                id: "core-pad",
-                                shape: .circle,
-                                position: .init(x: 0.5, y: 0.5),
-                                size: 0.25
-                            )
-                        ],
-                        controls: nil,
-                        required: true
-                    )
-                ],
-                lasers: [
-                    Level.Laser(
-                        id: "sweep-horizontal",
-                        type: .sweep,
-                        color: "#28E0FF",
-                        speed: 3.5,
-                        thickness: 0.02,
-                        travel: 0.3,
-                        offset: 0.5,
-                        axis: .horizontal,
-                        center: nil,
-                        radius: nil,
-                        direction: nil,
-                        phase: 0,
-                        startPoint: nil,
-                        endPoint: nil,
-                        togglePeriod: nil
-                    )
-                ]
-            )
-        ]
     }
 }

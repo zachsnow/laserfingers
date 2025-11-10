@@ -24,6 +24,7 @@ final class LaserGameScene: SKScene {
     
     private let drainRate: CGFloat = 0.18
     private let zapCooldown: TimeInterval = 0.45
+    private let defaultLaserCycleDuration: Double = 2.5
     
     init(level: Level, session: GameSession, settings: GameSettings) {
         self.level = level
@@ -147,12 +148,13 @@ final class LaserGameScene: SKScene {
         switch spec.type {
         case .sweep:
             let axis = spec.axis ?? .horizontal
+            let duration = max(spec.speed ?? defaultLaserCycleDuration, 0.4)
             let node = SweepingLaserNode(
                 axis: axis,
                 length: sweepLength(for: axis),
                 thickness: max(spec.thickness, 0.01) * minDimension,
                 travel: max(spec.travel ?? 0.25, 0.05) * minDimension,
-                duration: max(spec.speed, 0.4),
+                duration: duration,
                 color: color
             )
             node.position = sweepPosition(for: axis, offset: spec.offset ?? 0.5)
@@ -161,10 +163,11 @@ final class LaserGameScene: SKScene {
             guard let center = spec.center else { return nil }
             let radius = max(spec.radius ?? 0.3, 0.1) * minDimension
             let armLength = radius + max(size.width, size.height)
+            let duration = max(spec.speed ?? defaultLaserCycleDuration, 0.4)
             let node = RotatingLaserNode(
                 armLength: armLength,
                 thickness: max(spec.thickness, 0.01) * minDimension,
-                duration: max(spec.speed, 0.4),
+                duration: duration,
                 color: color,
                 clockwise: spec.direction != .counterclockwise
             )
@@ -281,7 +284,9 @@ final class LaserGameScene: SKScene {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard session.status == .running else { return }
         for touch in touches {
-            guard fingerSprites.count < max(1, session.touchAllowance) else { continue }
+            if !session.hasInfiniteSlots {
+                guard fingerSprites.count < max(1, session.touchAllowance) else { continue }
+            }
             let location = touch.location(in: self)
             let node = makeFingerSprite(at: location)
             addChild(node)
@@ -354,7 +359,7 @@ final class LaserGameScene: SKScene {
             partial[ObjectIdentifier(button), default: 0] += 1
         }
         
-        let maxTouches = max(1, session.touchAllowance)
+        let maxTouches = session.hasInfiniteSlots ? max(1, session.initialTouchAllowance) : max(1, session.touchAllowance)
         let isButtonActive: (ChargeButtonNode) -> Bool = { button in
             let count = pressCounts[ObjectIdentifier(button)] ?? 0
             return button.isActive(pressCount: count)
@@ -363,6 +368,7 @@ final class LaserGameScene: SKScene {
         for button in buttonNodes {
             let count = pressCounts[ObjectIdentifier(button)] ?? 0
             button.updatePressIntensity(pressingCount: count, maxTouches: maxTouches)
+            button.updateControlByPress(isPressed: count > 0)
         }
         
         for index in buttonClusterStates.indices {
@@ -577,6 +583,7 @@ private final class ChargeButtonNode: SKNode {
     private let outline: SKShapeNode
     private let fillNode: SKShapeNode
     private let glowNode: SKShapeNode
+    private let hitPath: CGPath
     let id: String
     let pad: Level.ButtonPad
     let controlsLaserId: String?
@@ -587,6 +594,7 @@ private final class ChargeButtonNode: SKNode {
     private(set) var isLocked: Bool = false
     private var displayProgress: CGFloat = 0
     private var controlState: Bool = false
+    private var switchEngaged: Bool = false
     var controlCallback: ((Bool) -> Void)?
     
     init(pad: Level.ButtonPad, set: Level.ButtonSet, referenceLength: CGFloat) {
@@ -602,6 +610,7 @@ private final class ChargeButtonNode: SKNode {
         outline = ChargeButtonNode.makeOutline(shape: pad.shape, size: size, inset: 0, isDrainer: drainer)
         fillNode = ChargeButtonNode.makeShape(shape: pad.shape, size: max(size * 0.92, size * 0.3), inset: 0)
         glowNode = ChargeButtonNode.makeShape(shape: pad.shape, size: size * 1.05, inset: 0)
+        hitPath = ChargeButtonNode.makeHitPath(shape: pad.shape, size: size)
         super.init()
         outline.lineWidth = size * 0.04
         outline.strokeColor = SKColor.fromHex(set.rimColor ?? "#FFFFFF", alpha: 0.8)
@@ -614,6 +623,16 @@ private final class ChargeButtonNode: SKNode {
         glowNode.fillColor = SKColor.fromHex(set.glowColor ?? set.fillColor, alpha: 0.35)
         glowNode.strokeColor = .clear
         glowNode.alpha = 0.1
+        
+        if isSwitch {
+            outline.lineWidth = size * 0.015
+            outline.strokeColor = SKColor.fromHex(set.rimColor ?? "#FFFFFF", alpha: 0.4)
+            outline.fillColor = SKColor.black.withAlphaComponent(0.25)
+            fillNode.fillColor = SKColor.fromHex(set.fillColor ?? "#FFFFFF", alpha: 0.5)
+            fillNode.alpha = 0.25
+            glowNode.fillColor = SKColor.fromHex(set.glowColor ?? set.fillColor ?? "#FFFFFF", alpha: 0.35)
+            glowNode.alpha = 0.12
+        }
         
         addChild(glowNode)
         addChild(outline)
@@ -629,9 +648,13 @@ private final class ChargeButtonNode: SKNode {
         controlState = false
         controlCallback?(false)
         setDisplayProgress(0)
+        if isSwitch {
+            setSwitchEngaged(false)
+        }
     }
     
     func setDisplayProgress(_ progress: CGFloat) {
+        guard !isSwitch else { return }
         displayProgress = progress.clamped(to: 0...1)
         if locksOnFill && !isLocked && displayProgress >= 0.999 {
             isLocked = true
@@ -645,8 +668,9 @@ private final class ChargeButtonNode: SKNode {
         fillNode.xScale = scale
         fillNode.yScale = scale
         fillNode.alpha = 0.6 + 0.4 * displayProgress
-        let controlActive = displayProgress >= 0.999
-        updateControlState(controlActive)
+        if !isSwitch {
+            updateControlState(displayProgress >= 0.999)
+        }
     }
     
     func isActive(pressCount: Int) -> Bool {
@@ -657,8 +681,17 @@ private final class ChargeButtonNode: SKNode {
     }
     
     func updatePressIntensity(pressingCount: Int, maxTouches: Int) {
-        let fraction = CGFloat(pressingCount) / CGFloat(max(1, maxTouches))
-        glowNode.alpha = 0.1 + fraction * 0.6
+        if isSwitch {
+            setSwitchEngaged(pressingCount > 0)
+        } else {
+            let fraction = CGFloat(pressingCount) / CGFloat(max(1, maxTouches))
+            glowNode.alpha = 0.1 + fraction * 0.6
+        }
+    }
+    
+    func updateControlByPress(isPressed: Bool) {
+        guard isSwitch else { return }
+        setSwitchEngaged(isPressed)
     }
     
     func celebrate() {
@@ -670,7 +703,7 @@ private final class ChargeButtonNode: SKNode {
     
     func contains(_ point: CGPoint, in scene: SKScene) -> Bool {
         let local = convert(point, from: scene)
-        return outline.contains(local)
+        return hitPath.contains(local)
     }
     
     func participatesInWin() -> Bool {
@@ -687,6 +720,19 @@ private final class ChargeButtonNode: SKNode {
             controlState = newValue
             controlCallback?(newValue)
         }
+    }
+    
+    private func setSwitchEngaged(_ engaged: Bool) {
+        guard isSwitch else { return }
+        if switchEngaged == engaged { return }
+        switchEngaged = engaged
+        let fillAlpha: CGFloat = engaged ? 0.85 : 0.25
+        let glowAlpha: CGFloat = engaged ? 0.65 : 0.12
+        fillNode.removeAllActions()
+        glowNode.removeAllActions()
+        fillNode.run(SKAction.fadeAlpha(to: fillAlpha, duration: 0.08))
+        glowNode.run(SKAction.fadeAlpha(to: glowAlpha, duration: 0.08))
+        updateControlState(engaged)
     }
     
     private static func makeOutline(shape: Level.ButtonShape, size: CGFloat, inset: CGFloat, isDrainer: Bool) -> SKShapeNode {
@@ -718,6 +764,11 @@ private final class ChargeButtonNode: SKNode {
             path.addRoundedRect(in: CGRect(x: -width / 2, y: -height / 2, width: width, height: height), cornerWidth: height / 2, cornerHeight: height / 2)
         }
         return path.copy() ?? path
+    }
+    
+    private static func makeHitPath(shape: Level.ButtonShape, size: CGFloat) -> CGPath {
+        let expandedSize = size * 1.2
+        return basePath(shape: shape, size: expandedSize, inset: 0)
     }
 }
 

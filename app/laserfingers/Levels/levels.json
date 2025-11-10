@@ -260,7 +260,7 @@
           "mode": "any",
           "kind": "switch",
           "isDrainer": true,
-          "timeToFull": 0.2,
+          "timeToFull": 0.01,
           "fillColor": "#06D6A0",
           "glowColor": "#B8F2E6",
           "rimColor": "#FFFFFF",
@@ -270,9 +270,9 @@
               "shape": "circle",
               "position": {
                 "x": 0.32,
-                "y": 0.5
+                "y": 0.32
               },
-              "size": 0.18
+              "size": 0.12
             }
           ],
           "controls": "tutorial-segment-1",

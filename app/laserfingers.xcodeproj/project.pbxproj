@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		19B200012FE0B4E700945EDF /* Levels in Resources */ = {isa = PBXBuildFile; fileRef = 19B200002FE0B4E700945EDF /* Levels */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		19B1325D2EC1494D00945EDF /* laserfingers.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = laserfingers.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		19B200002FE0B4E700945EDF /* Levels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Levels; path = laserfingers/Levels; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -29,11 +34,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		19241D412EC1B6D20087D9DD /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				19B200002FE0B4E700945EDF /* Levels */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		19B132542EC1494D00945EDF = {
 			isa = PBXGroup;
 			children = (
 				19B1325F2EC1494D00945EDF /* laserfingers */,
 				19B1325E2EC1494D00945EDF /* Products */,
+				19241D412EC1B6D20087D9DD /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -109,6 +123,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19B200012FE0B4E700945EDF /* Levels in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

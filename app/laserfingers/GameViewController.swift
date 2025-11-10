@@ -7,31 +7,50 @@
 
 import SwiftUI
 import SpriteKit
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct RootContainerView: View {
     @EnvironmentObject private var coordinator: AppCoordinator
     
     var body: some View {
-        Group {
-            switch coordinator.screen {
-            case .mainMenu:
-                MainMenuView()
-            case .settings:
-                SettingsView()
-            case .about:
-                AboutView()
-            case .levelSelect:
-                LevelSelectView()
-            case .gameplay:
-                if let runtime = coordinator.activeGame {
-                    GameplayView(runtime: runtime)
-                } else {
-                    MainMenuView()
-                }
+        ZStack {
+            contentView
+                .blur(radius: coordinator.loadErrorMessage == nil ? 0 : 8)
+                .allowsHitTesting(coordinator.loadErrorMessage == nil)
+            if let message = coordinator.loadErrorMessage {
+                FatalErrorOverlay(message: message)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
         .animation(.easeInOut, value: coordinator.screen)
+        .animation(.easeInOut, value: coordinator.loadErrorMessage)
         .preferredColorScheme(.dark)
+    }
+    
+    @ViewBuilder
+    private var contentView: some View {
+        switch coordinator.screen {
+        case .mainMenu:
+            MainMenuView()
+        case .settings:
+            SettingsView()
+        case .about:
+            AboutView()
+        case .levelSelect:
+            LevelSelectView()
+        case .advancedMenu:
+            AdvancedMenuView()
+        case .gameplay:
+            if let runtime = coordinator.activeGame {
+                GameplayView(runtime: runtime)
+            } else {
+                MainMenuView()
+            }
+        }
     }
 }
 
@@ -55,6 +74,9 @@ struct MainMenuView: View {
                 VStack(spacing: 16) {
                     LaserButton(title: "Play") { coordinator.showLevelSelect() }
                     LaserButton(title: "Settings") { coordinator.showSettings() }
+                    if coordinator.settings.advancedModeEnabled {
+                        LaserButton(title: "Advanced") { coordinator.showAdvancedMenu() }
+                    }
                     LaserButton(title: "About") { coordinator.showAbout() }
                 }
                 .frame(maxWidth: 320)
@@ -83,6 +105,8 @@ struct SettingsView: View {
                     .toggleStyle(SwitchToggleStyle(tint: .pink))
                 Toggle("Haptics", isOn: $coordinator.settings.hapticsEnabled)
                     .toggleStyle(SwitchToggleStyle(tint: .pink))
+                Toggle("Advanced Mode", isOn: $coordinator.settings.advancedModeEnabled)
+                    .toggleStyle(SwitchToggleStyle(tint: .pink))
                 Spacer()
                 LaserButton(title: "Back") { coordinator.goToMainMenu() }
             }
@@ -104,6 +128,33 @@ struct AboutView: View {
                     .foregroundColor(.white.opacity(0.85))
                 Link("See also Gernal →", destination: URL(string: "https://x0xrx.com")!)
                     .foregroundColor(.pink)
+                Spacer()
+                LaserButton(title: "Back") { coordinator.goToMainMenu() }
+            }
+        }
+    }
+}
+
+struct AdvancedMenuView: View {
+    @EnvironmentObject private var coordinator: AppCoordinator
+    @State private var backgroundScene = MenuBackgroundScene()
+    
+    var body: some View {
+        MenuScaffold(scene: backgroundScene) {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Advanced Tools")
+                    .font(.title.bold())
+                Toggle("Infinite Slots", isOn: $coordinator.settings.infiniteSlotsEnabled)
+                    .toggleStyle(SwitchToggleStyle(tint: .pink))
+                    .accessibilityIdentifier("advanced_infinite_slots_toggle")
+                VStack(spacing: 12) {
+                    LaserButton(title: "Reset Progress") {
+                        coordinator.resetProgress()
+                    }
+                    LaserButton(title: "Unlock All Levels") {
+                        coordinator.unlockAllLevels()
+                    }
+                }
                 Spacer()
                 LaserButton(title: "Back") { coordinator.goToMainMenu() }
             }
@@ -199,6 +250,65 @@ struct LevelRow: View {
         case .completed: return .green.opacity(0.4)
         case .current: return .yellow.opacity(0.6)
         case .locked: return .white.opacity(0.2)
+        }
+    }
+}
+
+// MARK: - Error Overlay
+
+struct FatalErrorOverlay: View {
+    let message: String
+    @State private var didCopy = false
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.yellow)
+            Text("Level Data Failed to Load")
+                .font(.title3.weight(.semibold))
+            Text("Fix the issue below and relaunch the app.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+            ScrollView {
+                Text(message)
+                    .font(.system(.footnote, design: .monospaced))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 200)
+            .padding()
+            .background(Color.white.opacity(0.05))
+            .cornerRadius(12)
+            Button(action: copyMessage) {
+                Label(didCopy ? "Copied" : "Copy Error", systemImage: didCopy ? "checkmark.circle.fill" : "doc.on.doc")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.pink)
+        }
+        .padding(24)
+        .background(Color.black.opacity(0.9))
+        .cornerRadius(20)
+        .shadow(color: .black.opacity(0.4), radius: 30, y: 10)
+        .padding()
+    }
+    
+    private func copyMessage() {
+        let payload = "Level load error:\n\(message)"
+        #if os(iOS)
+        UIPasteboard.general.string = payload
+        #elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(payload, forType: .string)
+        #endif
+        withAnimation(.easeInOut(duration: 0.2)) {
+            didCopy = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                didCopy = false
+            }
         }
     }
 }
@@ -300,7 +410,7 @@ struct GameHUDView: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
                 Text("Active: \(session.activeTouches)")
-                Text("Slots left: \(session.touchAllowance)")
+                Text("Slots left: \(slotsText)")
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
             }
@@ -308,6 +418,10 @@ struct GameHUDView: View {
         .padding()
         .background(Color.black.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+    
+    private var slotsText: String {
+        session.hasInfiniteSlots ? "∞" : "\(session.touchAllowance)"
     }
 }
 
