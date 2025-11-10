@@ -111,6 +111,8 @@ struct Level: Identifiable, Codable, Hashable {
         let direction: Rotation?
         /// Optional phase offset in seconds for staggering lasers
         let phase: Double?
+        /// Degrees to rotate sweepers for angled movement (sweep only)
+        let rotation: Double?
         /// Segment-only: first endpoint
         let startPoint: Coordinate?
         /// Segment-only: second endpoint

@@ -436,11 +436,12 @@ struct GameHUDView: View {
     var body: some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Level \(session.level.id)")
-                    .font(.headline)
                 Text(session.level.title)
+                    .font(.headline)
+                Text(session.level.description)
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.7))
+                    .lineLimit(2)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {

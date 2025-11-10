@@ -54,6 +54,7 @@
       "travel": 0.22,
       "offset": 0.45,
       "axis": "horizontal",
+      "rotation": 12,
       "phase": 0.6
     }
   ]

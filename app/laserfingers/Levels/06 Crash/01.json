@@ -67,7 +67,8 @@
       "thickness": 0.02,
       "travel": 0.3,
       "offset": 0.5,
-      "axis": "horizontal"
+      "axis": "horizontal",
+      "rotation": 15
     },
     {
       "id": "crash-v",
@@ -78,6 +79,7 @@
       "travel": 0.3,
       "offset": 0.5,
       "axis": "vertical",
+      "rotation": -18,
       "phase": 0.4
     }
   ]

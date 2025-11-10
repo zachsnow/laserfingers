@@ -197,13 +197,15 @@ final class LaserGameScene: SKScene {
         case .sweep:
             let axis = spec.axis ?? .horizontal
             let duration = max(spec.speed ?? defaultLaserCycleDuration, 0.4)
+            let rotation = CGFloat((spec.rotation ?? 0) * .pi / 180)
             let node = SweepingLaserNode(
                 axis: axis,
                 length: sweepLength(for: axis),
                 thickness: max(spec.thickness, 0.01) * minDimension,
                 travel: max(spec.travel ?? 0.25, 0.05) * minDimension,
                 duration: duration,
-                color: color
+                color: color,
+                rotation: rotation
             )
             node.position = sweepPosition(for: axis, offset: spec.offset ?? 0.5)
             return node
@@ -830,13 +832,15 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     private let axis: Level.Laser.Axis
     private let travel: CGFloat
     private let duration: TimeInterval
+    private let rotation: CGFloat
     private let beam: SKShapeNode
     private var suppressed = false
     
-    init(axis: Level.Laser.Axis, length: CGFloat, thickness: CGFloat, travel: CGFloat, duration: TimeInterval, color: SKColor) {
+    init(axis: Level.Laser.Axis, length: CGFloat, thickness: CGFloat, travel: CGFloat, duration: TimeInterval, color: SKColor, rotation: CGFloat = 0) {
         self.axis = axis
         self.travel = travel
         self.duration = duration
+        self.rotation = rotation
         let size: CGSize
         switch axis {
         case .horizontal:
@@ -851,9 +855,8 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
         beam.strokeColor = color.withAlphaComponent(0.8)
         beam.glowWidth = thickness * 0.8
         super.init()
-        if axis == .diagonal {
-            beam.zRotation = .pi / 4
-        }
+        let baseRotation: CGFloat = axis == .diagonal ? (.pi / 4) : 0
+        beam.zRotation = baseRotation + rotation
         addChild(beam)
     }
     
@@ -864,7 +867,9 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     func activate(phase: TimeInterval = 0) {
         let vector = movementVector()
         let forward = SKAction.moveBy(x: vector.dx, y: vector.dy, duration: duration / 2)
-        let backward = forward.reversed()
+        forward.timingMode = .easeInEaseOut
+        let backward = SKAction.moveBy(x: -vector.dx, y: -vector.dy, duration: duration / 2)
+        backward.timingMode = .easeInEaseOut
         let loop = SKAction.sequence([forward, backward])
         let start = SKAction.wait(forDuration: max(phase, 0))
         run(SKAction.sequence([start, SKAction.repeatForever(loop)]), withKey: "patrol")
@@ -883,15 +888,23 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     }
     
     private func movementVector() -> CGVector {
+        let base: CGVector
         switch axis {
         case .horizontal:
-            return CGVector(dx: 0, dy: travel)
+            base = CGVector(dx: 0, dy: travel)
         case .vertical:
-            return CGVector(dx: travel, dy: 0)
+            base = CGVector(dx: travel, dy: 0)
         case .diagonal:
             let component = travel / sqrt(2)
-            return CGVector(dx: component, dy: component)
+            base = CGVector(dx: component, dy: component)
         }
+        guard rotation != 0 else { return base }
+        let cosAngle = cos(rotation)
+        let sinAngle = sin(rotation)
+        return CGVector(
+            dx: base.dx * cosAngle - base.dy * sinAngle,
+            dy: base.dx * sinAngle + base.dy * cosAngle
+        )
     }
 }
 

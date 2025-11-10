@@ -79,6 +79,7 @@
       "travel": 0.28,
       "offset": 0.5,
       "axis": "vertical",
+      "rotation": -20,
       "phase": 0.3
     }
   ],
