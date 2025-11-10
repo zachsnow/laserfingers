@@ -2,203 +2,321 @@
   "levels": [
     {
       "id": 1,
-      "title": "Warmup Gate",
-      "description": "One central core with gentle opposing sweeps.",
-      "allowedTouches": 2,
+      "title": "Drainer Basics",
+      "description": "Hold the circle or it drains immediately.",
+      "allowedTouches": 1,
       "difficulty": 1,
-      "buttons": [
+      "buttons": [],
+      "buttonClusters": [],
+      "buttonSets": [
         {
-          "id": "core",
-          "shape": "circle",
-          "position": { "x": 0.5, "y": 0.5 },
-          "size": 0.25,
-          "fillColor": "#FF2E89",
-          "glowColor": "#FF7FC0",
+          "id": "drain-core",
+          "mode": "any",
+          "kind": "charge",
+          "isDrainer": true,
+          "timeToFull": 1.8,
+          "fillColor": "#FF4D6D",
+          "glowColor": "#FFC2D1",
           "rimColor": "#FFFFFF",
-          "timeToFull": 3.0
+          "pads": [
+            {
+              "id": "drain-pad",
+              "shape": "circle",
+              "position": {
+                "x": 0.5,
+                "y": 0.5
+              },
+              "size": 0.24
+            }
+          ],
+          "controls": null,
+          "required": true
         }
       ],
       "lasers": [
         {
-          "id": "sweep-east",
+          "id": "tutorial-sweep-1",
           "type": "sweep",
-          "color": "#24D8FF",
-          "speed": 3.2,
-          "thickness": 0.02,
-          "travel": 0.32,
-          "offset": 0.5,
-          "axis": "horizontal",
-          "phase": 0
-        },
-        {
-          "id": "sweep-north",
-          "type": "sweep",
-          "color": "#FFC857",
-          "speed": 2.6,
+          "color": "#48CAE4",
+          "speed": 2.8,
           "thickness": 0.018,
-          "travel": 0.25,
-          "offset": 0.5,
-          "axis": "vertical",
-          "phase": 0.8
+          "travel": 0.28,
+          "offset": 0.45,
+          "axis": "horizontal",
+          "phase": 0.0
         }
       ]
     },
     {
       "id": 2,
-      "title": "Crossfire",
-      "description": "Dual buttons split the charge while rotating beam patrols the middle.",
+      "title": "Locker Twins",
+      "description": "Two lockers charge independently.",
       "allowedTouches": 2,
-      "difficulty": 2,
-      "buttons": [
+      "difficulty": 1,
+      "buttons": [],
+      "buttonClusters": [],
+      "buttonSets": [
         {
-          "id": "left",
-          "shape": "capsule",
-          "position": { "x": 0.35, "y": 0.5 },
-          "size": 0.22,
-          "fillColor": "#A454FF",
-          "glowColor": "#E0B3FF",
+          "id": "left-locker",
+          "mode": "any",
+          "kind": "charge",
+          "isDrainer": false,
+          "timeToFull": 1.6,
+          "fillColor": "#7ACBFF",
+          "glowColor": "#D1ECFF",
           "rimColor": "#FFFFFF",
-          "timeToFull": 2.4
+          "pads": [
+            {
+              "id": "lock-west",
+              "shape": "square",
+              "position": {
+                "x": 0.38,
+                "y": 0.5
+              },
+              "size": 0.2
+            }
+          ],
+          "controls": null,
+          "required": true
         },
         {
-          "id": "right",
-          "shape": "capsule",
-          "position": { "x": 0.65, "y": 0.5 },
-          "size": 0.22,
-          "fillColor": "#FF5EA0",
-          "glowColor": "#FFC1DC",
+          "id": "right-locker",
+          "mode": "any",
+          "kind": "charge",
+          "isDrainer": false,
+          "timeToFull": 1.6,
+          "fillColor": "#FF9F1C",
+          "glowColor": "#FFD6A5",
           "rimColor": "#FFFFFF",
-          "timeToFull": 2.4
+          "pads": [
+            {
+              "id": "lock-east",
+              "shape": "square",
+              "position": {
+                "x": 0.62,
+                "y": 0.5
+              },
+              "size": 0.2
+            }
+          ],
+          "controls": null,
+          "required": true
         }
       ],
       "lasers": [
         {
-          "id": "sweep-low",
+          "id": "tutorial-sweep-2",
           "type": "sweep",
-          "color": "#3DE8FF",
+          "color": "#FFADAD",
           "speed": 2.4,
-          "thickness": 0.02,
-          "travel": 0.35,
-          "offset": 0.35,
-          "axis": "horizontal",
-          "phase": 0
-        },
-        {
-          "id": "sweep-high",
-          "type": "sweep",
-          "color": "#FF7043",
-          "speed": 2.0,
-          "thickness": 0.02,
-          "travel": 0.35,
-          "offset": 0.65,
-          "axis": "horizontal",
-          "phase": 1.1
-        },
-        {
-          "id": "rotor-core",
-          "type": "rotate",
-          "color": "#F9F871",
-          "speed": 2.8,
           "thickness": 0.018,
-          "radius": 0.32,
-          "center": { "x": 0.5, "y": 0.5 },
-          "direction": "clockwise",
-          "phase": 0
+          "travel": 0.26,
+          "offset": 0.5,
+          "axis": "vertical",
+          "phase": 0.4
         }
       ]
     },
     {
       "id": 3,
-      "title": "Pulse Storm",
-      "description": "Four corner buttons with staggered sweeps and a fast spinner.",
-      "allowedTouches": 3,
-      "difficulty": 3,
-      "buttons": [
+      "title": "Conjunction",
+      "description": "Press both pads together to charge.",
+      "allowedTouches": 2,
+      "difficulty": 1,
+      "buttons": [],
+      "buttonClusters": [],
+      "buttonSets": [
         {
-          "id": "nw",
-          "shape": "square",
-          "position": { "x": 0.35, "y": 0.65 },
-          "size": 0.18,
-          "fillColor": "#45FFC2",
-          "glowColor": "#C6FFE8",
+          "id": "paired-lock",
+          "mode": "all",
+          "kind": "charge",
+          "isDrainer": false,
+          "timeToFull": 1.8,
+          "fillColor": "#C77DFF",
+          "glowColor": "#E0AAFF",
           "rimColor": "#FFFFFF",
-          "timeToFull": 2.2
-        },
-        {
-          "id": "ne",
-          "shape": "square",
-          "position": { "x": 0.65, "y": 0.65 },
-          "size": 0.18,
-          "fillColor": "#FF8DD0",
-          "glowColor": "#FFD1EC",
-          "rimColor": "#FFFFFF",
-          "timeToFull": 2.2
-        },
-        {
-          "id": "sw",
-          "shape": "square",
-          "position": { "x": 0.35, "y": 0.35 },
-          "size": 0.18,
-          "fillColor": "#7ACBFF",
-          "glowColor": "#D1ECFF",
-          "rimColor": "#FFFFFF",
-          "timeToFull": 2.2
-        },
-        {
-          "id": "se",
-          "shape": "square",
-          "position": { "x": 0.65, "y": 0.35 },
-          "size": 0.18,
-          "fillColor": "#FFE066",
-          "glowColor": "#FFF1B3",
-          "rimColor": "#FFFFFF",
-          "timeToFull": 2.2
+          "pads": [
+            {
+              "id": "north",
+              "shape": "capsule",
+              "position": {
+                "x": 0.5,
+                "y": 0.6
+              },
+              "size": 0.28
+            },
+            {
+              "id": "south",
+              "shape": "capsule",
+              "position": {
+                "x": 0.5,
+                "y": 0.4
+              },
+              "size": 0.28
+            }
+          ],
+          "controls": null,
+          "required": true
         }
       ],
       "lasers": [
         {
-          "id": "sweep-left",
-          "type": "sweep",
-          "color": "#4DE2FF",
-          "speed": 1.9,
-          "thickness": 0.02,
-          "travel": 0.4,
-          "offset": 0.35,
-          "axis": "vertical",
-          "phase": 0
-        },
-        {
-          "id": "sweep-right",
-          "type": "sweep",
-          "color": "#FFB347",
-          "speed": 1.9,
-          "thickness": 0.02,
-          "travel": 0.4,
-          "offset": 0.65,
-          "axis": "vertical",
-          "phase": 0.8
-        },
-        {
-          "id": "diagonal",
-          "type": "sweep",
-          "color": "#FF4DA6",
-          "speed": 2.5,
-          "thickness": 0.022,
-          "travel": 0.3,
-          "offset": 0.5,
-          "axis": "diagonal",
-          "phase": 1.4
-        },
-        {
-          "id": "spinner",
+          "id": "tutorial-rotor-1",
           "type": "rotate",
           "color": "#F9F871",
-          "speed": 1.6,
+          "speed": 3.0,
           "thickness": 0.016,
-          "radius": 0.38,
-          "center": { "x": 0.5, "y": 0.5 },
+          "radius": 0.28,
+          "center": {
+            "x": 0.5,
+            "y": 0.5
+          },
           "direction": "counterclockwise",
-          "phase": 0.4
+          "phase": 0.2
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Disjunction",
+      "description": "Either pad can finish the gate.",
+      "allowedTouches": 2,
+      "difficulty": 1,
+      "buttons": [],
+      "buttonClusters": [],
+      "buttonSets": [
+        {
+          "id": "either-lock",
+          "mode": "any",
+          "kind": "charge",
+          "isDrainer": false,
+          "timeToFull": 1.9,
+          "fillColor": "#FFD23F",
+          "glowColor": "#FFF9C4",
+          "rimColor": "#FFFFFF",
+          "pads": [
+            {
+              "id": "left-pad",
+              "shape": "circle",
+              "position": {
+                "x": 0.35,
+                "y": 0.5
+              },
+              "size": 0.2
+            },
+            {
+              "id": "right-pad",
+              "shape": "circle",
+              "position": {
+                "x": 0.65,
+                "y": 0.5
+              },
+              "size": 0.2
+            }
+          ],
+          "controls": null,
+          "required": true
+        }
+      ],
+      "lasers": [
+        {
+          "id": "tutorial-sweep-3",
+          "type": "sweep",
+          "color": "#80ED99",
+          "speed": 2.5,
+          "thickness": 0.018,
+          "travel": 0.3,
+          "offset": 0.55,
+          "axis": "horizontal",
+          "phase": 0.3
+        },
+        {
+          "id": "tutorial-rotor-2",
+          "type": "rotate",
+          "color": "#72EFDD",
+          "speed": 3.2,
+          "thickness": 0.016,
+          "radius": 0.24,
+          "center": {
+            "x": 0.5,
+            "y": 0.5
+          },
+          "direction": "clockwise",
+          "phase": 1.0
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Switch Control",
+      "description": "Hold the switch to disable the segment, then fill the locker.",
+      "allowedTouches": 2,
+      "difficulty": 1,
+      "buttons": [],
+      "buttonClusters": [],
+      "buttonSets": [
+        {
+          "id": "segment-switch",
+          "mode": "any",
+          "kind": "switch",
+          "isDrainer": true,
+          "timeToFull": 0.2,
+          "fillColor": "#06D6A0",
+          "glowColor": "#B8F2E6",
+          "rimColor": "#FFFFFF",
+          "pads": [
+            {
+              "id": "switch-pad",
+              "shape": "circle",
+              "position": {
+                "x": 0.32,
+                "y": 0.5
+              },
+              "size": 0.18
+            }
+          ],
+          "controls": "tutorial-segment-1",
+          "required": false
+        },
+        {
+          "id": "segment-lock",
+          "mode": "any",
+          "kind": "charge",
+          "isDrainer": false,
+          "timeToFull": 1.7,
+          "fillColor": "#4ADEDE",
+          "glowColor": "#CFFAFE",
+          "rimColor": "#FFFFFF",
+          "pads": [
+            {
+              "id": "segment-pad",
+              "shape": "circle",
+              "position": {
+                "x": 0.62,
+                "y": 0.5
+              },
+              "size": 0.22
+            }
+          ],
+          "controls": null,
+          "required": true
+        }
+      ],
+      "lasers": [
+        {
+          "id": "tutorial-segment-1",
+          "type": "segment",
+          "color": "#FFB703",
+          "thickness": 0.02,
+          "startPoint": {
+            "x": 0.3,
+            "y": 0.5
+          },
+          "endPoint": {
+            "x": 0.7,
+            "y": 0.5
+          },
+          "phase": 0.0
         }
       ]
     }

@@ -217,8 +217,8 @@ struct GameplayView: View {
     
     var body: some View {
         ZStack {
-            GameSpriteView(scene: runtime.scene)
-                .id(runtime.level.id)
+            SpriteView(scene: runtime.scene)
+                .id(runtime.id)
                 .ignoresSafeArea()
             VStack {
                 HStack(alignment: .top) {

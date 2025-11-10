@@ -142,6 +142,7 @@ final class AppCoordinator: ObservableObject {
 }
 
 struct GameRuntime {
+    let id = UUID()
     let level: Level
     let session: GameSession
     let scene: LaserGameScene

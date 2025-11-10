@@ -7,22 +7,70 @@ struct Level: Identifiable, Codable, Hashable {
         let y: CGFloat
     }
     
-    struct Button: Identifiable, Codable, Hashable {
-        enum Shape: String, Codable {
-            case circle
-            case square
-            case capsule
+    enum ButtonShape: String, Codable, Hashable {
+        case circle
+        case square
+        case capsule
+    }
+    
+    struct ButtonPad: Identifiable, Codable, Hashable {
+        let id: String
+        let shape: ButtonShape
+        let position: Coordinate
+        /// Normalized size relative to the shortest scene edge (0-1)
+        let size: CGFloat
+    }
+    
+    struct ButtonSet: Identifiable, Codable, Hashable {
+        enum Mode: String, Codable {
+            case any
+            case all
+        }
+        
+        enum Kind: String, Codable {
+            case charge
+            case `switch`
         }
         
         let id: String
-        let shape: Shape
+        let mode: Mode
+        let kind: Kind?
+        /// When true, the buttons in this set drain unless actively pressed
+        let isDrainer: Bool?
+        /// Seconds needed to make full progress while the set condition is satisfied
+        let timeToFull: Double
+        let fillColor: String
+        let glowColor: String?
+        let rimColor: String?
+        let pads: [ButtonPad]
+        /// Laser controlled by this set, if any
+        let controls: String?
+        /// Whether this set must be completed to win
+        let required: Bool?
+    }
+    
+    struct Button: Identifiable, Codable, Hashable {
+        let id: String
+        let shape: ButtonShape
         let position: Coordinate
-        /// Normalized size relative to the shortest scene edge (0-1)
         let size: CGFloat
         let fillColor: String
         let glowColor: String?
         let rimColor: String?
-        /// Seconds needed to make full progress while pressing this button
+        let timeToFull: Double
+        let isDrainer: Bool?
+    }
+    
+    struct ButtonCluster: Identifiable, Codable, Hashable {
+        enum Mode: String, Codable {
+            case any
+            case all
+        }
+        
+        let id: String
+        let mode: Mode
+        let buttons: [String]
+        /// Seconds needed for this cluster to charge fully when active
         let timeToFull: Double
     }
     
@@ -30,6 +78,7 @@ struct Level: Identifiable, Codable, Hashable {
         enum LaserType: String, Codable {
             case sweep
             case rotate
+            case segment
         }
         
         enum Axis: String, Codable {
@@ -62,6 +111,12 @@ struct Level: Identifiable, Codable, Hashable {
         let direction: Rotation?
         /// Optional phase offset in seconds for staggering lasers
         let phase: Double?
+        /// Segment-only: first endpoint
+        let startPoint: Coordinate?
+        /// Segment-only: second endpoint
+        let endPoint: Coordinate?
+        /// Segment-only: seconds between on/off toggles
+        let togglePeriod: Double?
     }
     
     let id: Int
@@ -70,15 +125,9 @@ struct Level: Identifiable, Codable, Hashable {
     let allowedTouches: Int
     let difficulty: Int
     let buttons: [Button]
+    let buttonClusters: [ButtonCluster]?
+    let buttonSets: [ButtonSet]?
     let lasers: [Laser]
-}
-
-extension Level {
-    var averageChargeDuration: Double {
-        guard !buttons.isEmpty else { return 3 }
-        let total = buttons.reduce(0.0) { $0 + max($1.timeToFull, 0.1) }
-        return total / Double(buttons.count)
-    }
 }
 
 struct LevelManifest: Codable {
@@ -86,6 +135,76 @@ struct LevelManifest: Codable {
 }
 
 extension Level {
+    var resolvedButtonSets: [ButtonSet] {
+        if let sets = buttonSets, !sets.isEmpty {
+            return sets
+        }
+        if let clusters = buttonClusters, !clusters.isEmpty {
+            return clusters.compactMap { cluster in
+                let members = buttons.filter { cluster.buttons.contains($0.id) }
+                guard let first = members.first else { return nil }
+                let pads = members.map {
+                    ButtonPad(id: $0.id, shape: $0.shape, position: $0.position, size: $0.size)
+                }
+                return ButtonSet(
+                    id: cluster.id,
+                    mode: ButtonSet.Mode(rawValue: cluster.mode.rawValue) ?? .any,
+                    kind: .charge,
+                    isDrainer: members.first?.isDrainer,
+                    timeToFull: cluster.timeToFull,
+                    fillColor: first.fillColor,
+                    glowColor: first.glowColor,
+                    rimColor: first.rimColor,
+                    pads: pads,
+                    controls: nil,
+                    required: true
+                )
+            }
+        }
+        let derived = buttons.map {
+            ButtonSet(
+                id: "auto-\($0.id)",
+                mode: .any,
+                kind: .charge,
+                isDrainer: $0.isDrainer,
+                timeToFull: $0.timeToFull,
+                fillColor: $0.fillColor,
+                glowColor: $0.glowColor,
+                rimColor: $0.rimColor,
+                pads: [
+                    ButtonPad(id: $0.id, shape: $0.shape, position: $0.position, size: $0.size)
+                ],
+                controls: nil,
+                required: true
+            )
+        }
+        if derived.isEmpty {
+            return [
+                ButtonSet(
+                    id: "fallback-core",
+                    mode: .any,
+                    kind: .charge,
+                    isDrainer: false,
+                    timeToFull: 3.0,
+                    fillColor: "#FF2E89",
+                    glowColor: "#FF7FC0",
+                    rimColor: "#FFFFFF",
+                    pads: [
+                        ButtonPad(
+                            id: "fallback-pad",
+                            shape: .circle,
+                            position: .init(x: 0.5, y: 0.5),
+                            size: 0.25
+                        )
+                    ],
+                    controls: nil,
+                    required: true
+                )
+            ]
+        }
+        return derived
+    }
+    
     static var fallback: [Level] {
         return [
             Level(
@@ -94,16 +213,28 @@ extension Level {
                 description: "Single core button with opposing sweeps.",
                 allowedTouches: 2,
                 difficulty: 1,
-                buttons: [
-                    Level.Button(
+                buttons: [],
+                buttonClusters: nil,
+                buttonSets: [
+                    ButtonSet(
                         id: "core",
-                        shape: .circle,
-                        position: .init(x: 0.5, y: 0.5),
-                        size: 0.25,
+                        mode: .any,
+                        kind: .charge,
+                        isDrainer: false,
+                        timeToFull: 3.0,
                         fillColor: "#FF2E89",
                         glowColor: "#FF7FC0",
                         rimColor: "#FFFFFF",
-                        timeToFull: 3.0
+                        pads: [
+                            ButtonPad(
+                                id: "core-pad",
+                                shape: .circle,
+                                position: .init(x: 0.5, y: 0.5),
+                                size: 0.25
+                            )
+                        ],
+                        controls: nil,
+                        required: true
                     )
                 ],
                 lasers: [
@@ -119,7 +250,10 @@ extension Level {
                         center: nil,
                         radius: nil,
                         direction: nil,
-                        phase: 0
+                        phase: 0,
+                        startPoint: nil,
+                        endPoint: nil,
+                        togglePeriod: nil
                     )
                 ]
             )

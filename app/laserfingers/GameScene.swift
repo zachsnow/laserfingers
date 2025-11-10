@@ -14,12 +14,14 @@ final class LaserGameScene: SKScene {
     private let settings: GameSettings
     
     private var buttonNodes: [ChargeButtonNode] = []
+    private var buttonNodeMap: [String: ChargeButtonNode] = [:]
+    private var buttonClusterStates: [ButtonClusterState] = []
+    private var buttonClusterMembership: [String: [Int]] = [:]
     private var lasers: [LaserNode] = []
+    private var laserNodesById: [String: LaserNode] = [:]
     private var fingerSprites: [UITouch: FingerSprite] = [:]
-    private var progress: CGFloat = 0
     private var lastUpdateTime: TimeInterval = 0
     
-    private let fallbackChargeRate: CGFloat
     private let drainRate: CGFloat = 0.18
     private let zapCooldown: TimeInterval = 0.45
     
@@ -27,8 +29,6 @@ final class LaserGameScene: SKScene {
         self.level = level
         self.session = session
         self.settings = settings
-        let averageDuration = max(CGFloat(level.averageChargeDuration), 0.25)
-        self.fallbackChargeRate = 1.0 / averageDuration
         super.init(size: CGSize(width: 1920, height: 1080))
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 8/255, green: 9/255, blue: 20/255, alpha: 1)
@@ -39,6 +39,7 @@ final class LaserGameScene: SKScene {
     }
     
     override func didMove(to view: SKView) {
+        view.isMultipleTouchEnabled = true
         if buttonNodes.isEmpty {
             buildScene()
         }
@@ -54,11 +55,12 @@ final class LaserGameScene: SKScene {
     private func buildScene() {
         removeAllChildren()
         fingerSprites.removeAll()
-        progress = 0
         session.fillPercentage = 0
         addBackground()
         addButtons()
         spawnLasers()
+        wireButtonControls()
+        buttonNodes.forEach { $0.resetState() }
     }
     
     private func addBackground() {
@@ -77,34 +79,28 @@ final class LaserGameScene: SKScene {
     private func addButtons() {
         buttonNodes.forEach { $0.removeFromParent() }
         buttonNodes.removeAll()
+        buttonNodeMap.removeAll()
         
-        let specs = level.buttons.isEmpty ? [
-            Level.Button(
-                id: "core",
-                shape: .circle,
-                position: .init(x: 0.5, y: 0.5),
-                size: 0.25,
-                fillColor: "#FF2E89",
-                glowColor: "#FF7FC0",
-                rimColor: "#FFFFFF",
-                timeToFull: 3.0
-            )
-        ] : level.buttons
-        
+        let setSpecs = level.resolvedButtonSets
         let reference = min(size.width, size.height)
-        buttonNodes = specs.map { spec in
-            let node = ChargeButtonNode(spec: spec, referenceLength: reference)
-            node.position = point(for: spec.position)
-            node.zPosition = 5
-            node.updateChargeProgress(progress)
-            addChild(node)
-            return node
+
+        buttonNodes = setSpecs.flatMap { set -> [ChargeButtonNode] in
+            set.pads.map { pad in
+                let node = ChargeButtonNode(pad: pad, set: set, referenceLength: reference)
+                node.position = point(for: pad.position)
+                node.zPosition = 5
+                addChild(node)
+                buttonNodeMap[pad.id] = node
+                return node
+            }
         }
+        configureButtonClusters(with: setSpecs)
     }
     
     private func spawnLasers() {
         lasers.forEach { $0.removeFromParent() }
         lasers.removeAll()
+        laserNodesById.removeAll()
         
         guard !level.lasers.isEmpty else {
             spawnLegacyLasers()
@@ -116,6 +112,7 @@ final class LaserGameScene: SKScene {
             addChild(node)
             node.activate(phase: spec.phase ?? Double(index) * 0.35)
             lasers.append(node)
+            laserNodesById[spec.id] = node
         }
     }
     
@@ -162,14 +159,30 @@ final class LaserGameScene: SKScene {
             return node
         case .rotate:
             guard let center = spec.center else { return nil }
+            let radius = max(spec.radius ?? 0.3, 0.1) * minDimension
+            let armLength = radius + max(size.width, size.height)
             let node = RotatingLaserNode(
-                radius: max(spec.radius ?? 0.3, 0.1) * minDimension,
+                armLength: armLength,
                 thickness: max(spec.thickness, 0.01) * minDimension,
                 duration: max(spec.speed, 0.4),
                 color: color,
                 clockwise: spec.direction != .counterclockwise
             )
             node.position = point(for: center)
+            return node
+        case .segment:
+            guard
+                let start = spec.startPoint,
+                let end = spec.endPoint
+            else { return nil }
+            let togglePeriod = spec.togglePeriod.flatMap { $0 > 0 ? $0 : nil }
+            let node = SegmentLaserNode(
+                start: point(for: start),
+                end: point(for: end),
+                thickness: max(spec.thickness, 0.01) * minDimension,
+                color: color,
+                togglePeriod: togglePeriod
+            )
             return node
         }
     }
@@ -204,9 +217,62 @@ final class LaserGameScene: SKScene {
         )
     }
     
+    private func configureButtonClusters(with sets: [Level.ButtonSet]) {
+        buttonClusterStates.removeAll()
+        buttonClusterMembership.removeAll()
+        
+        for spec in sets {
+            let nodes = spec.pads.compactMap { buttonNodeMap[$0.id] }
+            guard !nodes.isEmpty else { continue }
+            let chargeRate = (1.0 / CGFloat(max(spec.timeToFull, 0.1))) * 1.5
+            let state = ButtonClusterState(
+                id: spec.id,
+                mode: ButtonClusterState.Mode(from: spec.mode),
+                nodes: nodes,
+                progress: 0,
+                chargeRate: chargeRate,
+                required: spec.required ?? true
+            )
+            let clusterIndex = buttonClusterStates.count
+            buttonClusterStates.append(state)
+            for node in nodes {
+                buttonClusterMembership[node.id, default: []].append(clusterIndex)
+            }
+        }
+        
+        if buttonClusterStates.isEmpty {
+            for node in buttonNodes {
+                let chargeRate = (1.0 / CGFloat(max(node.timeToFull, 0.1))) * 1.5
+                let state = ButtonClusterState(
+                    id: "auto-\(node.id)",
+                    mode: .any,
+                    nodes: [node],
+                    progress: 0,
+                    chargeRate: chargeRate,
+                    required: node.participatesInWin()
+                )
+                let index = buttonClusterStates.count
+                buttonClusterStates.append(state)
+                buttonClusterMembership[node.id, default: []].append(index)
+            }
+        }
+    }
+    
+    private func wireButtonControls() {
+        for node in buttonNodes {
+            guard let laserId = node.controlsLaserId else { continue }
+            node.controlCallback = { [weak self] suppressed in
+                self?.laserNodesById[laserId]?.setSuppressed(suppressed)
+            }
+            if let laser = laserNodesById[laserId] {
+                laser.setSuppressed(node.controlActiveState())
+            }
+        }
+    }
+    
     private func layoutScene() {
         for button in buttonNodes {
-            button.position = point(for: button.spec.position)
+            button.position = point(for: button.pad.position)
         }
     }
     
@@ -283,34 +349,60 @@ final class LaserGameScene: SKScene {
         let delta = min(currentTime - lastUpdateTime, 1 / 20)
         lastUpdateTime = currentTime
         
-        let pressingCount = fingerSprites.values.reduce(0) { partialResult, sprite in
-            partialResult + (sprite.activeButton == nil ? 0 : 1)
+        let pressCounts = fingerSprites.values.reduce(into: [ObjectIdentifier: Int]()) { partial, sprite in
+            guard let button = sprite.activeButton else { return }
+            partial[ObjectIdentifier(button), default: 0] += 1
         }
         
-        var totalChargeRate: CGFloat = fingerSprites.values.reduce(0) { partialResult, sprite in
-            guard let button = sprite.activeButton else { return partialResult }
-            return partialResult + button.chargeRate
-        }
-        if totalChargeRate == 0, pressingCount > 0 {
-            totalChargeRate = fallbackChargeRate
+        let maxTouches = max(1, session.touchAllowance)
+        let isButtonActive: (ChargeButtonNode) -> Bool = { button in
+            let count = pressCounts[ObjectIdentifier(button)] ?? 0
+            return button.isActive(pressCount: count)
         }
         
-        if totalChargeRate > 0 {
-            progress += totalChargeRate * CGFloat(delta)
-        } else {
-            progress -= drainRate * CGFloat(delta)
-        }
-        progress = progress.clamped(to: 0...1)
         for button in buttonNodes {
-            let presses = fingerSprites.values.filter { $0.activeButton === button }.count
-            button.updatePressIntensity(pressingCount: presses, maxTouches: max(1, session.touchAllowance))
-            button.updateChargeProgress(progress)
+            let count = pressCounts[ObjectIdentifier(button)] ?? 0
+            button.updatePressIntensity(pressingCount: count, maxTouches: maxTouches)
         }
-        session.fillPercentage = progress
+        
+        for index in buttonClusterStates.indices {
+            var state = buttonClusterStates[index]
+            let active: Bool
+            switch state.mode {
+            case .any:
+                active = state.nodes.contains { isButtonActive($0) }
+            case .all:
+                active = !state.nodes.isEmpty && state.nodes.allSatisfy { isButtonActive($0) }
+            }
+            if active {
+                state.progress += state.chargeRate * CGFloat(delta)
+            } else {
+                state.progress -= drainRate * CGFloat(delta)
+            }
+            state.progress = state.progress.clamped(to: 0...1)
+            buttonClusterStates[index] = state
+        }
+        
+        for node in buttonNodes {
+            let memberships = buttonClusterMembership[node.id]?.map { buttonClusterStates[$0].progress } ?? []
+            let display = memberships.max() ?? 0
+            node.setDisplayProgress(display)
+        }
+        
+        let requiredClusters = buttonClusterStates.filter { $0.required }
+        let clustersForFill = requiredClusters.isEmpty ? buttonClusterStates : requiredClusters
+        let averageProgress: CGFloat
+        if clustersForFill.isEmpty {
+            averageProgress = 0
+        } else {
+            let totalProgress = clustersForFill.reduce(CGFloat(0)) { $0 + $1.progress }
+            averageProgress = totalProgress / CGFloat(clustersForFill.count)
+        }
+        session.fillPercentage = averageProgress
         
         checkLaserHits(currentTime: currentTime)
         
-        if progress >= 1 {
+        if !clustersForFill.isEmpty && clustersForFill.allSatisfy({ $0.progress >= 1 }) {
             completeLevel()
         }
     }
@@ -378,6 +470,11 @@ private typealias LaserNode = SKNode & LaserObstacle
 private protocol LaserObstacle: AnyObject {
     func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool
     func activate(phase: TimeInterval)
+    func setSuppressed(_ suppressed: Bool)
+}
+
+extension LaserObstacle {
+    func setSuppressed(_ suppressed: Bool) {}
 }
 
 // MARK: - Menu Background
@@ -448,30 +545,73 @@ private struct FingerSprite {
     var lastZapTime: TimeInterval
 }
 
+private struct ButtonClusterState {
+    enum Mode {
+        case any
+        case all
+        
+        init(from spec: Level.ButtonCluster.Mode) {
+            switch spec {
+            case .any: self = .any
+            case .all: self = .all
+            }
+        }
+        
+        init(from spec: Level.ButtonSet.Mode) {
+            switch spec {
+            case .any: self = .any
+            case .all: self = .all
+            }
+        }
+    }
+    
+    let id: String
+    let mode: Mode
+    let nodes: [ChargeButtonNode]
+    var progress: CGFloat
+    let chargeRate: CGFloat
+    let required: Bool
+}
+
 private final class ChargeButtonNode: SKNode {
     private let outline: SKShapeNode
     private let fillNode: SKShapeNode
     private let glowNode: SKShapeNode
-    let spec: Level.Button
-    let chargeRate: CGFloat
+    let id: String
+    let pad: Level.ButtonPad
+    let controlsLaserId: String?
+    let requiredForWin: Bool
+    let timeToFull: Double
+    private let isSwitch: Bool
+    private let locksOnFill: Bool
+    private(set) var isLocked: Bool = false
+    private var displayProgress: CGFloat = 0
+    private var controlState: Bool = false
+    var controlCallback: ((Bool) -> Void)?
     
-    init(spec: Level.Button, referenceLength: CGFloat) {
-        self.spec = spec
-        let size = max(spec.size, 0.1) * referenceLength
-        outline = ChargeButtonNode.makeShape(shape: spec.shape, size: size, inset: 0)
-        fillNode = ChargeButtonNode.makeShape(shape: spec.shape, size: size * 0.55, inset: 0)
-        glowNode = ChargeButtonNode.makeShape(shape: spec.shape, size: size * 1.05, inset: 0)
-        chargeRate = 1.0 / CGFloat(max(spec.timeToFull, 0.15))
+    init(pad: Level.ButtonPad, set: Level.ButtonSet, referenceLength: CGFloat) {
+        self.id = pad.id
+        self.pad = pad
+        self.controlsLaserId = set.controls
+        self.requiredForWin = set.required ?? true
+        self.timeToFull = set.timeToFull
+        self.isSwitch = (set.kind ?? .charge) == .switch
+        let drainer = (set.isDrainer ?? false) || self.isSwitch
+        self.locksOnFill = !drainer && !self.isSwitch
+        let size = max(pad.size, 0.1) * referenceLength
+        outline = ChargeButtonNode.makeOutline(shape: pad.shape, size: size, inset: 0, isDrainer: drainer)
+        fillNode = ChargeButtonNode.makeShape(shape: pad.shape, size: max(size * 0.92, size * 0.3), inset: 0)
+        glowNode = ChargeButtonNode.makeShape(shape: pad.shape, size: size * 1.05, inset: 0)
         super.init()
         outline.lineWidth = size * 0.04
-        outline.strokeColor = SKColor.fromHex(spec.rimColor ?? "#FFFFFF", alpha: 0.8)
+        outline.strokeColor = SKColor.fromHex(set.rimColor ?? "#FFFFFF", alpha: 0.8)
         outline.fillColor = SKColor.black.withAlphaComponent(0.45)
         
-        fillNode.fillColor = SKColor.fromHex(spec.fillColor)
+        fillNode.fillColor = SKColor.fromHex(set.fillColor)
         fillNode.strokeColor = .clear
-        fillNode.yScale = 0
+        fillNode.setScale(0.05)
         
-        glowNode.fillColor = SKColor.fromHex(spec.glowColor ?? spec.fillColor, alpha: 0.35)
+        glowNode.fillColor = SKColor.fromHex(set.glowColor ?? set.fillColor, alpha: 0.35)
         glowNode.strokeColor = .clear
         glowNode.alpha = 0.1
         
@@ -484,9 +624,36 @@ private final class ChargeButtonNode: SKNode {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func updateChargeProgress(_ progress: CGFloat) {
-        fillNode.yScale = progress
-        fillNode.alpha = 0.6 + 0.4 * progress
+    func resetState() {
+        isLocked = false
+        controlState = false
+        controlCallback?(false)
+        setDisplayProgress(0)
+    }
+    
+    func setDisplayProgress(_ progress: CGFloat) {
+        displayProgress = progress.clamped(to: 0...1)
+        if locksOnFill && !isLocked && displayProgress >= 0.999 {
+            isLocked = true
+            displayProgress = 1.0
+        } else if isLocked {
+            displayProgress = 1.0
+        } else if isSwitch {
+            isLocked = false
+        }
+        let scale = max(displayProgress, 0.05)
+        fillNode.xScale = scale
+        fillNode.yScale = scale
+        fillNode.alpha = 0.6 + 0.4 * displayProgress
+        let controlActive = displayProgress >= 0.999
+        updateControlState(controlActive)
+    }
+    
+    func isActive(pressCount: Int) -> Bool {
+        if isSwitch {
+            return pressCount > 0
+        }
+        return pressCount > 0 || isLocked
     }
     
     func updatePressIntensity(pressingCount: Int, maxTouches: Int) {
@@ -495,6 +662,7 @@ private final class ChargeButtonNode: SKNode {
     }
     
     func celebrate() {
+        guard !isSwitch else { return }
         let pulse = SKAction.scale(to: 1.08, duration: 0.15)
         let reverse = SKAction.scale(to: 1.0, duration: 0.15)
         run(SKAction.sequence([pulse, reverse]))
@@ -505,18 +673,51 @@ private final class ChargeButtonNode: SKNode {
         return outline.contains(local)
     }
     
-    private static func makeShape(shape: Level.Button.Shape, size: CGFloat, inset: CGFloat) -> SKShapeNode {
+    func participatesInWin() -> Bool {
+        requiredForWin && !isSwitch
+    }
+    
+    func controlActiveState() -> Bool {
+        controlState
+    }
+    
+    private func updateControlState(_ newValue: Bool) {
+        guard controlsLaserId != nil else { return }
+        if controlState != newValue {
+            controlState = newValue
+            controlCallback?(newValue)
+        }
+    }
+    
+    private static func makeOutline(shape: Level.ButtonShape, size: CGFloat, inset: CGFloat, isDrainer: Bool) -> SKShapeNode {
+        let path = basePath(shape: shape, size: size, inset: inset)
+        if isDrainer {
+            let dashed = path.copy(dashingWithPhase: 0, lengths: [size * 0.15, size * 0.1])
+            return SKShapeNode(path: dashed)
+        }
+        return SKShapeNode(path: path)
+    }
+    
+    private static func makeShape(shape: Level.ButtonShape, size: CGFloat, inset: CGFloat) -> SKShapeNode {
+        let path = basePath(shape: shape, size: size, inset: inset)
+        return SKShapeNode(path: path)
+    }
+    
+    private static func basePath(shape: Level.ButtonShape, size: CGFloat, inset: CGFloat) -> CGPath {
+        let path = CGMutablePath()
         switch shape {
         case .circle:
-            return SKShapeNode(circleOfRadius: max(size - inset, 2) / 2)
+            let radius = max(size - inset, 2) / 2
+            path.addEllipse(in: CGRect(x: -radius, y: -radius, width: radius * 2, height: radius * 2))
         case .square:
             let edge = max(size - inset, 4)
-            return SKShapeNode(rectOf: CGSize(width: edge, height: edge), cornerRadius: edge * 0.12)
+            path.addRoundedRect(in: CGRect(x: -edge / 2, y: -edge / 2, width: edge, height: edge), cornerWidth: edge * 0.12, cornerHeight: edge * 0.12)
         case .capsule:
             let width = max(size - inset, 4)
             let height = width * 0.55
-            return SKShapeNode(rectOf: CGSize(width: width, height: height), cornerRadius: height / 2)
+            path.addRoundedRect(in: CGRect(x: -width / 2, y: -height / 2, width: width, height: height), cornerWidth: height / 2, cornerHeight: height / 2)
         }
+        return path.copy() ?? path
     }
 }
 
@@ -525,6 +726,7 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     private let travel: CGFloat
     private let duration: TimeInterval
     private let beam: SKShapeNode
+    private var suppressed = false
     
     init(axis: Level.Laser.Axis, length: CGFloat, thickness: CGFloat, travel: CGFloat, duration: TimeInterval, color: SKColor) {
         self.axis = axis
@@ -564,8 +766,15 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     }
     
     func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
+        guard !suppressed else { return false }
         let localPoint = convert(scenePoint, from: scene)
         return beam.contains(localPoint)
+    }
+    
+    func setSuppressed(_ suppressed: Bool) {
+        self.suppressed = suppressed
+        let alpha: CGFloat = suppressed ? 0.05 : 1.0
+        beam.alpha = alpha
     }
     
     private func movementVector() -> CGVector {
@@ -585,12 +794,13 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
     private let beam: SKShapeNode
     private let duration: TimeInterval
     private let clockwise: Bool
+    private var suppressed = false
     
-    init(radius: CGFloat, thickness: CGFloat, duration: TimeInterval, color: SKColor, clockwise: Bool) {
+    init(armLength: CGFloat, thickness: CGFloat, duration: TimeInterval, color: SKColor, clockwise: Bool) {
         self.duration = duration
         self.clockwise = clockwise
-        beam = SKShapeNode(rectOf: CGSize(width: thickness, height: radius), cornerRadius: thickness / 2)
-        beam.position = CGPoint(x: 0, y: radius / 2)
+        beam = SKShapeNode(rectOf: CGSize(width: thickness, height: armLength), cornerRadius: thickness / 2)
+        beam.position = CGPoint(x: 0, y: armLength / 2)
         beam.fillColor = color
         beam.strokeColor = color.withAlphaComponent(0.8)
         beam.glowWidth = thickness * 0.9
@@ -611,8 +821,94 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
     }
     
     func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
+        guard !suppressed else { return false }
         let localPoint = convert(scenePoint, from: scene)
         return beam.contains(localPoint)
+    }
+    
+    func setSuppressed(_ suppressed: Bool) {
+        self.suppressed = suppressed
+        let alpha: CGFloat = suppressed ? 0.05 : 1.0
+        beam.alpha = alpha
+    }
+}
+
+private final class SegmentLaserNode: SKNode, LaserObstacle {
+    private let beam: SKShapeNode
+    private let startBox: SKShapeNode
+    private let endBox: SKShapeNode
+    private let togglePeriod: TimeInterval?
+    private var isOn: Bool = true
+    private var suppressed = false
+    
+    init(start: CGPoint, end: CGPoint, thickness: CGFloat, color: SKColor, togglePeriod: Double?) {
+        self.togglePeriod = (togglePeriod ?? 0) > 0 ? togglePeriod : nil
+        let vector = CGVector(dx: end.x - start.x, dy: end.y - start.y)
+        let length = hypot(vector.dx, vector.dy)
+        beam = SKShapeNode(rectOf: CGSize(width: length, height: thickness), cornerRadius: thickness / 2)
+        beam.fillColor = color
+        beam.strokeColor = color.withAlphaComponent(0.9)
+        beam.glowWidth = thickness * 0.8
+        let boxSize = CGSize(width: thickness * 1.4, height: thickness * 1.4)
+        startBox = SKShapeNode(rectOf: boxSize, cornerRadius: thickness * 0.2)
+        startBox.fillColor = color
+        startBox.strokeColor = color.withAlphaComponent(0.9)
+        endBox = startBox.copy() as! SKShapeNode
+        super.init()
+        let angle = atan2(vector.dy, vector.dx)
+        beam.zRotation = angle
+        beam.position = CGPoint(x: vector.dx / 2, y: vector.dy / 2)
+        startBox.position = .zero
+        endBox.position = CGPoint(x: vector.dx, y: vector.dy)
+        addChild(beam)
+        addChild(startBox)
+        addChild(endBox)
+        position = start
+        updateVisualState()
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    func activate(phase: TimeInterval = 0) {
+        guard let period = togglePeriod, period > 0 else {
+            updateVisualState()
+            return
+        }
+        let wait = SKAction.wait(forDuration: period)
+        let toggle = SKAction.run { [weak self] in
+            self?.toggleState()
+        }
+        let cycle = SKAction.repeatForever(SKAction.sequence([wait, toggle]))
+        if phase > 0 {
+            run(SKAction.sequence([SKAction.wait(forDuration: phase), cycle]), withKey: "segment-toggle")
+        } else {
+            run(cycle, withKey: "segment-toggle")
+        }
+    }
+    
+    func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
+        guard isOn && !suppressed else { return false }
+        let local = convert(scenePoint, from: scene)
+        return beam.contains(local)
+    }
+    
+    func setSuppressed(_ suppressed: Bool) {
+        self.suppressed = suppressed
+        updateVisualState()
+    }
+    
+    private func toggleState() {
+        isOn.toggle()
+        updateVisualState()
+    }
+    
+    private func updateVisualState() {
+        let alpha: CGFloat = (isOn && !suppressed) ? 1.0 : 0.05
+        beam.alpha = alpha
+        startBox.alpha = alpha
+        endBox.alpha = alpha
     }
 }
 
