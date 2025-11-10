@@ -1,0 +1,6 @@
+# ./build.sh generates some shit.
+*.log
+DerivedData/
+**/.DS_Store
+**/build/
+*~
