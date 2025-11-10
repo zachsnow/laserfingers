@@ -21,6 +21,20 @@ final class LaserGameScene: SKScene {
     private var laserNodesById: [String: LaserNode] = [:]
     private var fingerSprites: [UITouch: FingerSprite] = [:]
     private var lastUpdateTime: TimeInterval = 0
+    private let alertOverlay: SKSpriteNode = {
+        let node = SKSpriteNode(color: SKColor(red: 1, green: 0.15, blue: 0.2, alpha: 1))
+        node.alpha = 0
+        node.zPosition = 50
+        node.blendMode = .add
+        node.isUserInteractionEnabled = false
+        return node
+    }()
+    
+    private enum AlertKind {
+        case cancelled
+        case zap
+        case exhausted
+    }
     
     private let drainRate: CGFloat = 0.18
     private let zapCooldown: TimeInterval = 0.45
@@ -51,6 +65,7 @@ final class LaserGameScene: SKScene {
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
         layoutScene()
+        updateAlertOverlayFrame()
     }
     
     private func buildScene() {
@@ -58,6 +73,7 @@ final class LaserGameScene: SKScene {
         fingerSprites.removeAll()
         session.fillPercentage = 0
         addBackground()
+        addAlertOverlay()
         addButtons()
         spawnLasers()
         wireButtonControls()
@@ -75,6 +91,38 @@ final class LaserGameScene: SKScene {
         glow.strokeColor = .clear
         glow.zPosition = -9
         addChild(glow)
+    }
+    
+    private func addAlertOverlay() {
+        updateAlertOverlayFrame()
+        alertOverlay.removeAllActions()
+        alertOverlay.alpha = 0
+        alertOverlay.removeFromParent()
+        addChild(alertOverlay)
+    }
+    
+    private func updateAlertOverlayFrame() {
+        alertOverlay.size = CGSize(width: size.width * 1.3, height: size.height * 1.3)
+        alertOverlay.position = CGPoint(x: size.width / 2, y: size.height / 2)
+    }
+    
+    private func flashAlert(_ kind: AlertKind) {
+        let targetAlpha: CGFloat
+        switch kind {
+        case .cancelled:
+            alertOverlay.color = SKColor.white
+            targetAlpha = 0.25
+        case .zap:
+            alertOverlay.color = SKColor(red: 1, green: 0.8, blue: 0.1, alpha: 1)
+            targetAlpha = 0.45
+        case .exhausted:
+            alertOverlay.color = SKColor(red: 1, green: 0, blue: 0.05, alpha: 1)
+            targetAlpha = 0.75
+        }
+        let fadeIn = SKAction.fadeAlpha(to: targetAlpha, duration: 0.05)
+        let fadeOut = SKAction.fadeAlpha(to: 0, duration: 0.35)
+        alertOverlay.removeAction(forKey: "alertFlash")
+        alertOverlay.run(SKAction.sequence([fadeIn, fadeOut]), withKey: "alertFlash")
     }
     
     private func addButtons() {
@@ -314,6 +362,9 @@ final class LaserGameScene: SKScene {
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if !fingerSprites.isEmpty {
+            flashAlert(.cancelled)
+        }
         removeTouches(touches)
     }
     
@@ -440,7 +491,10 @@ final class LaserGameScene: SKScene {
         }
         
         if session.registerZap() {
+            flashAlert(.exhausted)
             failLevel()
+        } else {
+            flashAlert(.zap)
         }
     }
     

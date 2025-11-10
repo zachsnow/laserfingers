@@ -303,8 +303,10 @@ final class GameSession: ObservableObject {
     
     init(level: Level, settings: GameSettings) {
         self.level = level
-        self.touchAllowance = level.allowedTouches
-        self.initialTouchAllowance = level.allowedTouches
+        let hardwareLimit = TouchCapabilities.maxSimultaneousTouches
+        let effectiveAllowance = max(1, min(level.allowedTouches, hardwareLimit))
+        self.touchAllowance = effectiveAllowance
+        self.initialTouchAllowance = effectiveAllowance
         self.soundEnabled = settings.soundEnabled
         self.hapticsEnabled = settings.hapticsEnabled
         self.hasInfiniteSlots = settings.infiniteSlotsEnabled
