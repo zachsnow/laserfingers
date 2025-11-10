@@ -130,10 +130,6 @@ struct Level: Identifiable, Codable, Hashable {
     let lasers: [Laser]
 }
 
-struct LevelManifest: Codable {
-    let levels: [Level]
-}
-
 extension Level {
     var resolvedButtonSets: [ButtonSet] {
         if let sets = buttonSets, !sets.isEmpty {

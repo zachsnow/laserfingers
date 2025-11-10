@@ -6,19 +6,17 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		19B200012FE0B4E700945EDF /* Levels in Resources */ = {isa = PBXBuildFile; fileRef = 19B200002FE0B4E700945EDF /* Levels */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXFileReference section */
-		19B1325D2EC1494D00945EDF /* laserfingers.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = laserfingers.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		19B200002FE0B4E700945EDF /* Levels */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Levels; path = laserfingers/Levels; sourceTree = SOURCE_ROOT; };
+		19B1325D2EC1494D00945EDF /* Laserfingers.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Laserfingers.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		19B1325F2EC1494D00945EDF /* laserfingers */ = {
+		19B1325F2EC1494D00945EDF /* Laserfingers */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = laserfingers;
+			explicitFolders = (
+				Levels,
+			);
+			path = Laserfingers;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -34,27 +32,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		19241D412EC1B6D20087D9DD /* Recovered References */ = {
-			isa = PBXGroup;
-			children = (
-				19B200002FE0B4E700945EDF /* Levels */,
-			);
-			name = "Recovered References";
-			sourceTree = "<group>";
-		};
 		19B132542EC1494D00945EDF = {
 			isa = PBXGroup;
 			children = (
-				19B1325F2EC1494D00945EDF /* laserfingers */,
+				19B1325F2EC1494D00945EDF /* Laserfingers */,
 				19B1325E2EC1494D00945EDF /* Products */,
-				19241D412EC1B6D20087D9DD /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
 		19B1325E2EC1494D00945EDF /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				19B1325D2EC1494D00945EDF /* laserfingers.app */,
+				19B1325D2EC1494D00945EDF /* Laserfingers.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -62,9 +51,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		19B1325C2EC1494D00945EDF /* laserfingers */ = {
+		19B1325C2EC1494D00945EDF /* Laserfingers */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 19B132742EC1494E00945EDF /* Build configuration list for PBXNativeTarget "laserfingers" */;
+			buildConfigurationList = 19B132742EC1494E00945EDF /* Build configuration list for PBXNativeTarget "Laserfingers" */;
 			buildPhases = (
 				19B132592EC1494D00945EDF /* Sources */,
 				19B1325A2EC1494D00945EDF /* Frameworks */,
@@ -75,13 +64,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				19B1325F2EC1494D00945EDF /* laserfingers */,
+				19B1325F2EC1494D00945EDF /* Laserfingers */,
 			);
-			name = laserfingers;
+			name = Laserfingers;
 			packageProductDependencies = (
 			);
-			productName = laserfingers;
-			productReference = 19B1325D2EC1494D00945EDF /* laserfingers.app */;
+			productName = Laserfingers;
+			productReference = 19B1325D2EC1494D00945EDF /* Laserfingers.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -99,7 +88,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 19B132582EC1494D00945EDF /* Build configuration list for PBXProject "laserfingers" */;
+			buildConfigurationList = 19B132582EC1494D00945EDF /* Build configuration list for PBXProject "Laserfingers" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -113,7 +102,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				19B1325C2EC1494D00945EDF /* laserfingers */,
+				19B1325C2EC1494D00945EDF /* Laserfingers */,
 			);
 		};
 /* End PBXProject section */
@@ -123,7 +112,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				19B200012FE0B4E700945EDF /* Levels in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -320,7 +308,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		19B132582EC1494D00945EDF /* Build configuration list for PBXProject "laserfingers" */ = {
+		19B132582EC1494D00945EDF /* Build configuration list for PBXProject "Laserfingers" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				19B132722EC1494E00945EDF /* Debug */,
@@ -329,7 +317,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		19B132742EC1494E00945EDF /* Build configuration list for PBXNativeTarget "laserfingers" */ = {
+		19B132742EC1494E00945EDF /* Build configuration list for PBXNativeTarget "Laserfingers" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				19B132752EC1494E00945EDF /* Debug */,

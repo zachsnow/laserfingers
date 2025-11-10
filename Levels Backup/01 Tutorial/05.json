@@ -1,0 +1,74 @@
+{
+  "id": 5,
+  "title": "Switch Control",
+  "description": "Hold the switch to disable the segment, then fill the locker.",
+  "allowedTouches": 2,
+  "difficulty": 1,
+  "buttons": [],
+  "buttonClusters": [],
+  "buttonSets": [
+    {
+      "id": "segment-switch",
+      "mode": "any",
+      "kind": "switch",
+      "isDrainer": true,
+      "timeToFull": 0.01,
+      "fillColor": "#06D6A0",
+      "glowColor": "#B8F2E6",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "switch-pad",
+          "shape": "circle",
+          "position": {
+            "x": 0.32,
+            "y": 0.32
+          },
+          "size": 0.12
+        }
+      ],
+      "controls": "tutorial-segment-1",
+      "required": false
+    },
+    {
+      "id": "segment-lock",
+      "mode": "any",
+      "kind": "charge",
+      "isDrainer": false,
+      "timeToFull": 1.7,
+      "fillColor": "#4ADEDE",
+      "glowColor": "#CFFAFE",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "segment-pad",
+          "shape": "circle",
+          "position": {
+            "x": 0.62,
+            "y": 0.5
+          },
+          "size": 0.22
+        }
+      ],
+      "controls": null,
+      "required": true
+    }
+  ],
+  "lasers": [
+    {
+      "id": "tutorial-segment-1",
+      "type": "segment",
+      "color": "#FFB703",
+      "thickness": 0.02,
+      "startPoint": {
+        "x": 0.3,
+        "y": 0.5
+      },
+      "endPoint": {
+        "x": 0.7,
+        "y": 0.5
+      },
+      "phase": 0.0
+    }
+  ]
+}

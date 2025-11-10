@@ -1,0 +1,70 @@
+{
+  "id": 2,
+  "title": "Locker Twins",
+  "description": "Two lockers charge independently.",
+  "allowedTouches": 2,
+  "difficulty": 1,
+  "buttons": [],
+  "buttonClusters": [],
+  "buttonSets": [
+    {
+      "id": "left-locker",
+      "mode": "any",
+      "kind": "charge",
+      "isDrainer": false,
+      "timeToFull": 1.6,
+      "fillColor": "#7ACBFF",
+      "glowColor": "#D1ECFF",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "lock-west",
+          "shape": "square",
+          "position": {
+            "x": 0.38,
+            "y": 0.5
+          },
+          "size": 0.2
+        }
+      ],
+      "controls": null,
+      "required": true
+    },
+    {
+      "id": "right-locker",
+      "mode": "any",
+      "kind": "charge",
+      "isDrainer": false,
+      "timeToFull": 1.6,
+      "fillColor": "#FF9F1C",
+      "glowColor": "#FFD6A5",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "lock-east",
+          "shape": "square",
+          "position": {
+            "x": 0.62,
+            "y": 0.5
+          },
+          "size": 0.2
+        }
+      ],
+      "controls": null,
+      "required": true
+    }
+  ],
+  "lasers": [
+    {
+      "id": "tutorial-sweep-2",
+      "type": "sweep",
+      "color": "#FFADAD",
+      "speed": 2.4,
+      "thickness": 0.018,
+      "travel": 0.26,
+      "offset": 0.5,
+      "axis": "vertical",
+      "phase": 0.4
+    }
+  ]
+}

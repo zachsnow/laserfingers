@@ -67,7 +67,7 @@ struct MainMenuView: View {
             Color.black.opacity(0.55).ignoresSafeArea()
             VStack(spacing: 32) {
                 Spacer()
-                Text("LASERFINGERS")
+                Text("LASER\nFINGERS")
                     .font(.system(size: 52, weight: .black, design: .rounded))
                     .kerning(4)
                     .foregroundColor(.white)
@@ -187,10 +187,10 @@ struct LevelSelectView: View {
                     Spacer().frame(width: 44)
                 }
                 ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(coordinator.levelProgressEntries()) { entry in
-                            LevelRow(entry: entry) {
-                                coordinator.startLevel(entry.level)
+                    VStack(spacing: 20) {
+                        ForEach(coordinator.levelPackEntries()) { packEntry in
+                            LevelPackSection(entry: packEntry) { level in
+                                coordinator.startLevel(level)
                             }
                         }
                     }
@@ -201,34 +201,64 @@ struct LevelSelectView: View {
     }
 }
 
-struct LevelRow: View {
+struct LevelPackSection: View {
+    let entry: LevelPackProgress
+    let startLevel: (Level) -> Void
+    private let columns = [GridItem(.adaptive(minimum: 72), spacing: 12)]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(entry.pack.name)
+                    .font(.headline)
+                Spacer()
+                Text("\(entry.completedCount) of \(entry.totalCount)")
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            LazyVGrid(columns: columns, spacing: 12) {
+                ForEach(entry.levels) { levelEntry in
+                    LevelIconButton(entry: levelEntry) {
+                        startLevel(levelEntry.level)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.white.opacity(0.05))
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(borderColor, lineWidth: 1)
+        )
+    }
+    
+    private var borderColor: Color {
+        switch entry.state {
+        case .completed: return .green.opacity(0.4)
+        case .incomplete: return .yellow.opacity(0.6)
+        case .locked: return .white.opacity(0.2)
+        }
+    }
+}
+
+struct LevelIconButton: View {
     let entry: LevelProgress
     let action: () -> Void
     
     var body: some View {
         Button(action: action) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(entry.level.title)
-                        .font(.headline)
-                    Text(entry.level.description)
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
-                }
-                Spacer()
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(tileBackground)
                 statusIcon
+                    .font(.system(size: 28, weight: .semibold))
             }
-            .padding()
-            .background(Color.white.opacity(0.05))
-            .cornerRadius(14)
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(borderColor, lineWidth: 1)
-            )
+            .aspectRatio(1, contentMode: .fit)
         }
         .buttonStyle(.plain)
         .disabled(entry.state == .locked)
-        .opacity(entry.state == .locked ? 0.4 : 1)
+        .opacity(entry.state == .locked ? 0.35 : 1)
     }
     
     private var statusIcon: some View {
@@ -236,7 +266,7 @@ struct LevelRow: View {
         case .completed:
             return Image(systemName: "checkmark.seal.fill")
                 .foregroundColor(.green)
-        case .current:
+        case .incomplete:
             return Image(systemName: "arrowtriangle.right.circle.fill")
                 .foregroundColor(.yellow)
         case .locked:
@@ -245,11 +275,11 @@ struct LevelRow: View {
         }
     }
     
-    private var borderColor: Color {
+    private var tileBackground: Color {
         switch entry.state {
-        case .completed: return .green.opacity(0.4)
-        case .current: return .yellow.opacity(0.6)
-        case .locked: return .white.opacity(0.2)
+        case .completed: return Color.green.opacity(0.15)
+        case .incomplete: return Color.yellow.opacity(0.15)
+        case .locked: return Color.white.opacity(0.08)
         }
     }
 }

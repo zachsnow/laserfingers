@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier="primary"
                BlueprintIdentifier="19B1325C2EC1494D00945EDF"
-               BuildableName="laserfingers.app"
-               BlueprintName="laserfingers"
-               ReferencedContainer="container:laserfingers.xcodeproj">
+               BuildableName="Laserfingers.app"
+               BlueprintName="Laserfingers"
+               ReferencedContainer="container:Laserfingers.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
          <BuildableReference
             BuildableIdentifier="primary"
             BlueprintIdentifier="19B1325C2EC1494D00945EDF"
-            BuildableName="laserfingers.app"
-            BlueprintName="laserfingers"
-            ReferencedContainer="container:laserfingers.xcodeproj">
+            BuildableName="Laserfingers.app"
+            BlueprintName="Laserfingers"
+            ReferencedContainer="container:Laserfingers.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
    </TestAction>
@@ -54,9 +54,9 @@
          <BuildableReference
             BuildableIdentifier="primary"
             BlueprintIdentifier="19B1325C2EC1494D00945EDF"
-            BuildableName="laserfingers.app"
-            BlueprintName="laserfingers"
-            ReferencedContainer="container:laserfingers.xcodeproj">
+            BuildableName="Laserfingers.app"
+            BlueprintName="Laserfingers"
+            ReferencedContainer="container:Laserfingers.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -71,9 +71,9 @@
          <BuildableReference
             BuildableIdentifier="primary"
             BlueprintIdentifier="19B1325C2EC1494D00945EDF"
-            BuildableName="laserfingers.app"
-            BlueprintName="laserfingers"
-            ReferencedContainer="container:laserfingers.xcodeproj">
+            BuildableName="Laserfingers.app"
+            BlueprintName="Laserfingers"
+            ReferencedContainer="container:Laserfingers.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

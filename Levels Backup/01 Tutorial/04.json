@@ -1,0 +1,70 @@
+{
+  "id": 4,
+  "title": "Disjunction",
+  "description": "Either pad can finish the gate.",
+  "allowedTouches": 2,
+  "difficulty": 1,
+  "buttons": [],
+  "buttonClusters": [],
+  "buttonSets": [
+    {
+      "id": "either-lock",
+      "mode": "any",
+      "kind": "charge",
+      "isDrainer": false,
+      "timeToFull": 1.9,
+      "fillColor": "#FFD23F",
+      "glowColor": "#FFF9C4",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "left-pad",
+          "shape": "circle",
+          "position": {
+            "x": 0.35,
+            "y": 0.5
+          },
+          "size": 0.2
+        },
+        {
+          "id": "right-pad",
+          "shape": "circle",
+          "position": {
+            "x": 0.65,
+            "y": 0.5
+          },
+          "size": 0.2
+        }
+      ],
+      "controls": null,
+      "required": true
+    }
+  ],
+  "lasers": [
+    {
+      "id": "tutorial-sweep-3",
+      "type": "sweep",
+      "color": "#80ED99",
+      "speed": 2.5,
+      "thickness": 0.018,
+      "travel": 0.3,
+      "offset": 0.55,
+      "axis": "horizontal",
+      "phase": 0.3
+    },
+    {
+      "id": "tutorial-rotor-2",
+      "type": "rotate",
+      "color": "#72EFDD",
+      "speed": 3.2,
+      "thickness": 0.016,
+      "radius": 0.24,
+      "center": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "direction": "clockwise",
+      "phase": 1.0
+    }
+  ]
+}

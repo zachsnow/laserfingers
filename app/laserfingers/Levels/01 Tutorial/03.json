@@ -1,0 +1,59 @@
+{
+  "id": 3,
+  "title": "Conjunction",
+  "description": "Press both pads together to charge.",
+  "allowedTouches": 2,
+  "difficulty": 1,
+  "buttons": [],
+  "buttonClusters": [],
+  "buttonSets": [
+    {
+      "id": "paired-lock",
+      "mode": "all",
+      "kind": "charge",
+      "isDrainer": false,
+      "timeToFull": 1.8,
+      "fillColor": "#C77DFF",
+      "glowColor": "#E0AAFF",
+      "rimColor": "#FFFFFF",
+      "pads": [
+        {
+          "id": "north",
+          "shape": "capsule",
+          "position": {
+            "x": 0.5,
+            "y": 0.6
+          },
+          "size": 0.28
+        },
+        {
+          "id": "south",
+          "shape": "capsule",
+          "position": {
+            "x": 0.5,
+            "y": 0.4
+          },
+          "size": 0.28
+        }
+      ],
+      "controls": null,
+      "required": true
+    }
+  ],
+  "lasers": [
+    {
+      "id": "tutorial-rotor-1",
+      "type": "rotate",
+      "color": "#F9F871",
+      "speed": 3.0,
+      "thickness": 0.016,
+      "radius": 0.28,
+      "center": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "direction": "counterclockwise",
+      "phase": 0.2
+    }
+  ]
+}

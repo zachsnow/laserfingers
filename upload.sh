@@ -82,7 +82,7 @@ if [[ $SKIP_BUILD -eq 0 ]]; then
     mkdir -p "$DERIVED_DATA_PATH"
 
     if ! xcodebuild \
-        -project "$ROOT_DIR/app/laserfingers.xcodeproj" \
+        -project "$ROOT_DIR/app/Laserfingers.xcodeproj" \
         -scheme "Laserfingers" \
         -configuration Release \
         -destination "generic/platform=iOS" \

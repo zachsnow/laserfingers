@@ -43,7 +43,7 @@ final class ProgressStore {
     
     func loadProgress(for levels: [Level]) -> [LevelProgress] {
         let defaultProgress = levels.enumerated().map { index, level in
-            LevelProgress(level: level, state: index == 0 ? .current : .locked)
+            LevelProgress(level: level, state: index == 0 ? .incomplete : .locked)
         }
         guard
             let data = defaults.data(forKey: Keys.progress),
@@ -53,7 +53,7 @@ final class ProgressStore {
         }
         let stateMap = Dictionary(uniqueKeysWithValues: stored.map { ($0.levelId, $0.state) })
         return levels.enumerated().map { index, level in
-            let fallbackState: LevelProgress.State = index == 0 ? .current : .locked
+            let fallbackState: LevelProgress.State = index == 0 ? .incomplete : .locked
             let state = stateMap[level.id] ?? fallbackState
             return LevelProgress(level: level, state: state)
         }

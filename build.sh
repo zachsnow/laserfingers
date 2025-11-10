@@ -26,7 +26,6 @@ if xcodebuild \
   -destination "$DESTINATION" \
   -derivedDataPath "$DERIVED_DATA_PATH" \
   CODE_SIGNING_ALLOWED=NO \
-  clean \
   build >>"$LOG_FILE" 2>&1; then
   echo "Build succeeded."
 else
