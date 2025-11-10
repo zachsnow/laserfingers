@@ -128,7 +128,7 @@ struct Level: Identifiable, Codable, Hashable {
     let buttonClusters: [ButtonCluster]?
     let buttonSets: [ButtonSet]?
     let lasers: [Laser]
-    let unlocks: [Int]?
+    let unlocks: [String]?
 }
 
 extension Level {
