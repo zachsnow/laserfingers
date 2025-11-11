@@ -2,123 +2,134 @@ import Foundation
 import CoreGraphics
 
 struct Level: Identifiable, Codable, Hashable {
-    struct Coordinate: Codable, Hashable {
+    struct NormalizedPoint: Codable, Hashable {
         let x: CGFloat
         let y: CGFloat
     }
     
-    enum ButtonShape: String, Codable, Hashable {
-        case circle
-        case square
-        case capsule
-    }
-    
-    struct ButtonPad: Identifiable, Codable, Hashable {
-        let id: String
-        let shape: ButtonShape
-        let position: Coordinate
-        /// Normalized size relative to the shortest scene edge (0-1)
-        let size: CGFloat
-    }
-    
-    struct ButtonSet: Identifiable, Codable, Hashable {
-        enum Mode: String, Codable {
-            case any
-            case all
-        }
-        
-        enum Kind: String, Codable {
-            case charge
-            case `switch`
-        }
-        
-        let id: String
-        let mode: Mode
-        let kind: Kind?
-        /// When true, the buttons in this set drain unless actively pressed
-        let isDrainer: Bool?
-        /// Seconds needed to make full progress while the set condition is satisfied
-        let timeToFull: Double
-        let fillColor: String
-        let glowColor: String?
-        let rimColor: String?
-        let pads: [ButtonPad]
-        /// Laser controlled by this set, if any
-        let controls: String?
-        /// Whether this set must be completed to win
-        let required: Bool?
+    enum Device: String, Codable, Hashable {
+        case iPhone = "iPhone"
+        case iPadMini = "iPad Mini"
+        case iPad = "iPad"
     }
     
     struct Button: Identifiable, Codable, Hashable {
-        let id: String
-        let shape: ButtonShape
-        let position: Coordinate
-        let size: CGFloat
-        let fillColor: String
-        let glowColor: String?
-        let rimColor: String?
-        let timeToFull: Double
-        let isDrainer: Bool?
-    }
-    
-    struct ButtonCluster: Identifiable, Codable, Hashable {
-        enum Mode: String, Codable {
+        struct Timing: Codable, Hashable {
+            /// Seconds to reach a full charge while conditions are met. Zero means instantaneous.
+            let chargeSeconds: Double
+            /// Seconds to hold a full charge after touches stop. Nil = indefinite, zero = drain immediately.
+            let holdSeconds: Double?
+            /// Seconds to drain completely once hold time has expired. Zero means instantaneous.
+            let drainSeconds: Double
+        }
+        
+        struct ColorSpec: Codable, Hashable {
+            let fill: String
+            let glow: String?
+            let rim: String?
+        }
+        
+        enum HitLogic: String, Codable {
             case any
             case all
         }
         
+        struct HitArea: Identifiable, Codable, Hashable {
+            enum Shape: Hashable {
+                case circle(radius: CGFloat)
+                case rectangle(width: CGFloat, height: CGFloat, cornerRadius: CGFloat?)
+                case capsule(length: CGFloat, radius: CGFloat)
+                case polygon(points: [NormalizedPoint])
+            }
+            
+            let id: String
+            let shape: Shape
+            /// Position relative to the owning button's position.
+            let offset: NormalizedPoint
+            /// Rotation in degrees applied after positioning. Defaults to 0.
+            let rotationDegrees: CGFloat?
+        }
+        
+        struct Effect: Codable, Hashable {
+            enum Trigger: String, Codable {
+                case touchStarted
+                case touchEnded
+                case turnedOn
+                case turnedOff
+            }
+            
+            struct Action: Codable, Hashable {
+                enum Kind: String, Codable {
+                    case turnOnLasers
+                    case turnOffLasers
+                    case toggleLasers
+                }
+                
+                let kind: Kind
+                /// Laser identifiers the action targets.
+                let lasers: [String]
+            }
+            
+            let trigger: Trigger
+            let action: Action
+        }
+        
         let id: String
-        let mode: Mode
-        let buttons: [String]
-        /// Seconds needed for this cluster to charge fully when active
-        let timeToFull: Double
+        /// Anchor used for positioning hit areas.
+        let position: NormalizedPoint
+        let timing: Timing
+        let hitLogic: HitLogic
+        let required: Bool
+        let color: ColorSpec
+        let hitAreas: [HitArea]
+        let effects: [Effect]
     }
     
     struct Laser: Identifiable, Codable, Hashable {
-        enum LaserType: String, Codable {
-            case sweep
-            case rotate
-            case segment
+        struct CadenceStep: Codable, Hashable {
+            enum State: String, Codable {
+                case on
+                case off
+            }
+            
+            let state: State
+            /// Duration to stay in the given state. Nil = hold indefinitely.
+            let duration: Double?
         }
         
-        enum Axis: String, Codable {
-            case horizontal
-            case vertical
-            case diagonal
+        enum Kind: Hashable {
+            case sweeper(Sweeper)
+            case rotor(Rotor)
+            case segment(Segment)
         }
         
-        enum Rotation: String, Codable {
-            case clockwise
-            case counterclockwise
+        struct Sweeper: Codable, Hashable {
+            /// Normalized endpoints measured in the short-axis coordinate space.
+            let start: NormalizedPoint
+            let end: NormalizedPoint
+            /// Seconds to travel from start to end before reversing.
+            let sweepSeconds: Double
+        }
+        
+        struct Rotor: Codable, Hashable {
+            let center: NormalizedPoint
+            /// Degrees per second. Positive = clockwise.
+            let speedDegreesPerSecond: Double
+            let initialAngleDegrees: Double
+        }
+        
+        struct Segment: Codable, Hashable {
+            let start: NormalizedPoint
+            let end: NormalizedPoint
         }
         
         let id: String
-        let type: LaserType
         let color: String
-        /// Seconds for a full sweep/rotation cycle (sweep/rotate only)
-        let speed: Double?
-        /// Normalized beam thickness relative to the shortest scene edge
+        /// Normalized beam thickness relative to the shortest scene edge.
         let thickness: CGFloat
-        /// Normalized magnitude for sweep travel
-        let travel: CGFloat?
-        /// Position offset for sweep lasers (0-1 across perpendicular axis)
-        let offset: CGFloat?
-        let axis: Axis?
-        /// Normalized center coordinate for rotating lasers
-        let center: Coordinate?
-        /// Normalized radius for rotating lasers
-        let radius: CGFloat?
-        let direction: Rotation?
-        /// Optional phase offset in seconds for staggering lasers
-        let phase: Double?
-        /// Degrees to rotate sweepers for angled movement (sweep only)
-        let rotation: Double?
-        /// Segment-only: first endpoint
-        let startPoint: Coordinate?
-        /// Segment-only: second endpoint
-        let endPoint: Coordinate?
-        /// Segment-only: seconds between on/off toggles
-        let togglePeriod: Double?
+        /// Cadence applied to the firing state. Nil or empty => always on.
+        let cadence: [CadenceStep]?
+        let kind: Kind
     }
     
     let id: String
@@ -126,57 +137,162 @@ struct Level: Identifiable, Codable, Hashable {
     let description: String
     let allowedTouches: Int
     let difficulty: Int
+    let devices: [Device]?
     let buttons: [Button]
-    let buttonClusters: [ButtonCluster]?
-    let buttonSets: [ButtonSet]?
     let lasers: [Laser]
     let unlocks: [String]?
 }
 
 extension Level {
-    var resolvedButtonSets: [ButtonSet] {
-        if let sets = buttonSets, !sets.isEmpty {
-            return sets
+    func supports(_ device: DeviceProfile.Kind) -> Bool {
+        guard let devices = devices, !devices.isEmpty else { return true }
+        return devices.contains { $0.rawValue == device.rawValue }
+    }
+}
+
+extension Level.Button {
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case position
+        case timing
+        case hitLogic
+        case required
+        case color
+        case hitAreas
+        case effects
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        position = try container.decode(Level.NormalizedPoint.self, forKey: .position)
+        timing = try container.decode(Level.Button.Timing.self, forKey: .timing)
+        hitLogic = try container.decode(Level.Button.HitLogic.self, forKey: .hitLogic)
+        required = try container.decode(Bool.self, forKey: .required)
+        color = try container.decode(Level.Button.ColorSpec.self, forKey: .color)
+        hitAreas = try container.decode([Level.Button.HitArea].self, forKey: .hitAreas)
+        effects = try container.decodeIfPresent([Level.Button.Effect].self, forKey: .effects) ?? []
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(position, forKey: .position)
+        try container.encode(timing, forKey: .timing)
+        try container.encode(hitLogic, forKey: .hitLogic)
+        try container.encode(required, forKey: .required)
+        try container.encode(color, forKey: .color)
+        try container.encode(hitAreas, forKey: .hitAreas)
+        if !effects.isEmpty {
+            try container.encode(effects, forKey: .effects)
         }
-        if let clusters = buttonClusters, !clusters.isEmpty {
-            return clusters.compactMap { cluster in
-                let members = buttons.filter { cluster.buttons.contains($0.id) }
-                guard let first = members.first else { return nil }
-                let pads = members.map {
-                    ButtonPad(id: $0.id, shape: $0.shape, position: $0.position, size: $0.size)
-                }
-                return ButtonSet(
-                    id: cluster.id,
-                    mode: ButtonSet.Mode(rawValue: cluster.mode.rawValue) ?? .any,
-                    kind: .charge,
-                    isDrainer: members.first?.isDrainer,
-                    timeToFull: cluster.timeToFull,
-                    fillColor: first.fillColor,
-                    glowColor: first.glowColor,
-                    rimColor: first.rimColor,
-                    pads: pads,
-                    controls: nil,
-                    required: true
-                )
-            }
+    }
+}
+
+extension Level.Button.HitArea.Shape: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case radius
+        case width
+        case height
+        case cornerRadius
+        case length
+        case points
+    }
+    
+    private enum ShapeType: String, Codable {
+        case circle
+        case rectangle
+        case capsule
+        case polygon
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(ShapeType.self, forKey: .type)
+        switch type {
+        case .circle:
+            let radius = try container.decode(CGFloat.self, forKey: .radius)
+            self = .circle(radius: radius)
+        case .rectangle:
+            let width = try container.decode(CGFloat.self, forKey: .width)
+            let height = try container.decode(CGFloat.self, forKey: .height)
+            let cornerRadius = try container.decodeIfPresent(CGFloat.self, forKey: .cornerRadius)
+            self = .rectangle(width: width, height: height, cornerRadius: cornerRadius)
+        case .capsule:
+            let length = try container.decode(CGFloat.self, forKey: .length)
+            let radius = try container.decode(CGFloat.self, forKey: .radius)
+            self = .capsule(length: length, radius: radius)
+        case .polygon:
+            let points = try container.decode([Level.NormalizedPoint].self, forKey: .points)
+            self = .polygon(points: points)
         }
-        let derived = buttons.map {
-            ButtonSet(
-                id: "auto-\($0.id)",
-                mode: .any,
-                kind: .charge,
-                isDrainer: $0.isDrainer,
-                timeToFull: $0.timeToFull,
-                fillColor: $0.fillColor,
-                glowColor: $0.glowColor,
-                rimColor: $0.rimColor,
-                pads: [
-                    ButtonPad(id: $0.id, shape: $0.shape, position: $0.position, size: $0.size)
-                ],
-                controls: nil,
-                required: true
-            )
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .circle(let radius):
+            try container.encode(ShapeType.circle, forKey: .type)
+            try container.encode(radius, forKey: .radius)
+        case .rectangle(let width, let height, let cornerRadius):
+            try container.encode(ShapeType.rectangle, forKey: .type)
+            try container.encode(width, forKey: .width)
+            try container.encode(height, forKey: .height)
+            try container.encodeIfPresent(cornerRadius, forKey: .cornerRadius)
+        case .capsule(let length, let radius):
+            try container.encode(ShapeType.capsule, forKey: .type)
+            try container.encode(length, forKey: .length)
+            try container.encode(radius, forKey: .radius)
+        case .polygon(let points):
+            try container.encode(ShapeType.polygon, forKey: .type)
+            try container.encode(points, forKey: .points)
         }
-        return derived
+    }
+}
+
+extension Level.Laser.Kind: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case type
+        case sweeper
+        case rotor
+        case segment
+    }
+    
+    private enum KindType: String, Codable {
+        case sweeper
+        case rotor
+        case segment
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(KindType.self, forKey: .type)
+        switch type {
+        case .sweeper:
+            let value = try container.decode(Level.Laser.Sweeper.self, forKey: .sweeper)
+            self = .sweeper(value)
+        case .rotor:
+            let value = try container.decode(Level.Laser.Rotor.self, forKey: .rotor)
+            self = .rotor(value)
+        case .segment:
+            let value = try container.decode(Level.Laser.Segment.self, forKey: .segment)
+            self = .segment(value)
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .sweeper(let sweeper):
+            try container.encode(KindType.sweeper, forKey: .type)
+            try container.encode(sweeper, forKey: .sweeper)
+        case .rotor(let rotor):
+            try container.encode(KindType.rotor, forKey: .type)
+            try container.encode(rotor, forKey: .rotor)
+        case .segment(let segment):
+            try container.encode(KindType.segment, forKey: .type)
+            try container.encode(segment, forKey: .segment)
+        }
     }
 }

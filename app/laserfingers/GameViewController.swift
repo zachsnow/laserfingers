@@ -368,6 +368,7 @@ struct GameplayView: View {
             VStack {
                 HStack(alignment: .top) {
                     GameHUDView(session: session)
+                        .allowsHitTesting(false)
                     Spacer()
                     PauseButton(isEnabled: session.status == .running) {
                         coordinator.pauseGame()
@@ -434,26 +435,24 @@ struct GameHUDView: View {
     @ObservedObject var session: GameSession
     
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(session.level.title)
                     .font(.headline)
                 Text(session.level.description)
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundColor(.white.opacity(0.75))
                     .lineLimit(2)
             }
-            Spacer()
+            Spacer(minLength: 12)
             VStack(alignment: .trailing, spacing: 4) {
                 Text("Active: \(session.activeTouches)")
                 Text("Slots left: \(slotsText)")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundColor(.white.opacity(0.75))
             }
         }
-        .padding()
-        .background(Color.black.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal)
     }
     
     private var slotsText: String {

@@ -23,8 +23,11 @@ enum LevelRepository {
         decoder.keyDecodingStrategy = .useDefaultKeys
         let baseURL = try resolveLevelsDirectory()
         let packURLs = try directoryContents(at: baseURL)
-        return try packURLs.map { packURL in
+        let device = DeviceProfile.current
+        return try packURLs.compactMap { packURL in
             let levels = try loadLevels(in: packURL, decoder: decoder)
+                .filter { $0.supports(device) }
+            guard !levels.isEmpty else { return nil }
             let directoryName = packURL.lastPathComponent
             return LevelPack(
                 directoryName: directoryName,
