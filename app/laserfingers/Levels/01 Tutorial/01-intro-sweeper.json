@@ -1,0 +1,64 @@
+{
+  "id": "tutorial-sweeper-01",
+  "title": "Sweep Awareness",
+  "description": "Charge the center node while the horizontal laser sweeps.",
+  "allowedTouches": 2,
+  "difficulty": 1,
+  "buttons": [
+    {
+      "id": "center-button",
+      "position": {
+        "x": 0.0,
+        "y": -0.2
+      },
+      "timing": {
+        "chargeSeconds": 1.5,
+        "holdSeconds": 0,
+        "drainSeconds": 1.5
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#FF6B6B",
+        "glow": "#FFD6A5",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "center-hit",
+          "shape": {
+            "type": "circle",
+            "radius": 0.3
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": []
+    }
+  ],
+  "lasers": [
+    {
+      "id": "intro-sweeper",
+      "color": "#48CAE4",
+      "thickness": 0.018,
+      "kind": {
+        "type": "sweeper",
+        "sweeper": {
+          "start": {
+            "x": -0.95,
+            "y": 0.2
+          },
+          "end": {
+            "x": 0.95,
+            "y": 0.2
+          },
+          "sweepSeconds": 2.4
+        }
+      }
+    }
+  ],
+  "unlocks": []
+}

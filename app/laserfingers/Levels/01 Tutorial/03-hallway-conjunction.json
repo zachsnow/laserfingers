@@ -1,0 +1,75 @@
+{
+  "id": "tutorial-conjunction-01",
+  "title": "Hallway Hold",
+  "description": "Touch both pads to charge while a sweeper tracks the hallway.",
+  "allowedTouches": 2,
+  "difficulty": 3,
+  "buttons": [
+    {
+      "id": "hallway-button",
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "timing": {
+        "chargeSeconds": 2.0,
+        "holdSeconds": 0,
+        "drainSeconds": 2.0
+      },
+      "hitLogic": "all",
+      "required": true,
+      "color": {
+        "fill": "#C77DFF",
+        "glow": "#E0AAFF",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "north-node",
+          "shape": {
+            "type": "circle",
+            "radius": 0.25
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 1.5
+          }
+        },
+        {
+          "id": "south-node",
+          "shape": {
+            "type": "circle",
+            "radius": 0.25
+          },
+          "offset": {
+            "x": 0.0,
+            "y": -1.5
+          }
+        }
+      ],
+      "effects": []
+    }
+  ],
+  "lasers": [
+    {
+      "id": "hallway-sweeper",
+      "color": "#F9F871",
+      "thickness": 0.016,
+      "kind": {
+        "type": "sweeper",
+        "sweeper": {
+          "start": {
+            "x": 0.0,
+            "y": 1.75
+          },
+          "end": {
+            "x": 0.0,
+            "y": -1.75
+          },
+          "sweepSeconds": 2.6
+        }
+      }
+    }
+  ],
+  "unlocks": []
+}

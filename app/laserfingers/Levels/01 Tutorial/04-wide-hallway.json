@@ -1,0 +1,75 @@
+{
+  "id": "tutorial-disjunction-01",
+  "title": "Wide Hallway",
+  "description": "Either pad keeps the gate charging, but beware the heavy laser.",
+  "allowedTouches": 2,
+  "difficulty": 3,
+  "buttons": [
+    {
+      "id": "hallway-button",
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "timing": {
+        "chargeSeconds": 1.6,
+        "holdSeconds": 0,
+        "drainSeconds": 1.6
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#4CC9F0",
+        "glow": "#A3CEFF",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "north-node",
+          "shape": {
+            "type": "circle",
+            "radius": 0.25
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 1.5
+          }
+        },
+        {
+          "id": "south-node",
+          "shape": {
+            "type": "circle",
+            "radius": 0.25
+          },
+          "offset": {
+            "x": 0.0,
+            "y": -1.5
+          }
+        }
+      ],
+      "effects": []
+    }
+  ],
+  "lasers": [
+    {
+      "id": "wide-hallway",
+      "color": "#FFAA2C",
+      "thickness": 0.5,
+      "kind": {
+        "type": "sweeper",
+        "sweeper": {
+          "start": {
+            "x": 0.0,
+            "y": 1.75
+          },
+          "end": {
+            "x": 0.0,
+            "y": -1.75
+          },
+          "sweepSeconds": 3.0
+        }
+      }
+    }
+  ],
+  "unlocks": []
+}
