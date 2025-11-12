@@ -20,4 +20,14 @@ extension SKColor {
         let blue = CGFloat(value & 0x0000FF) / 255.0
         return SKColor(red: red, green: green, blue: blue, alpha: alpha)
     }
+    
+    func brightened(by amount: CGFloat) -> SKColor {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard getRed(&r, green: &g, blue: &b, alpha: &a) else { return self }
+        let factor = 1 + amount
+        return SKColor(red: min(r * factor, 1), green: min(g * factor, 1), blue: min(b * factor, 1), alpha: a)
+    }
 }

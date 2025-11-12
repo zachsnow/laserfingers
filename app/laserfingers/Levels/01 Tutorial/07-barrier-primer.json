@@ -1,0 +1,115 @@
+{
+  "id": "tutorial-barrier-01",
+  "title": "Barrier Primer",
+  "description": "Use the lower switch to drop the barrier, then charge the escape pad.",
+  "backgroundImage": "../../Images/bg.jpg",
+  "maxTouches": 2,
+  "buttons": [
+    {
+      "id": "barrier-switch",
+      "position": {
+        "x": 0.0,
+        "y": -0.5
+      },
+      "timing": {
+        "chargeSeconds": 0.0,
+        "holdSeconds": 0.0,
+        "drainSeconds": 0.0
+      },
+      "hitLogic": "any",
+      "required": false,
+      "color": {
+        "fill": "#FFD166",
+        "glow": "#FFE29A",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "switch-pad",
+          "shape": {
+            "type": "circle",
+            "radius": 0.26
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": [
+        {
+          "trigger": "touchStarted",
+          "action": {
+            "kind": "turnOffLasers",
+            "lasers": [
+              "ceiling-barrier"
+            ]
+          }
+        },
+        {
+          "trigger": "touchEnded",
+          "action": {
+            "kind": "turnOnLasers",
+            "lasers": [
+              "ceiling-barrier"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "upper-gate",
+      "position": {
+        "x": 0.0,
+        "y": 0.5
+      },
+      "timing": {
+        "chargeSeconds": 1.5,
+        "holdSeconds": 0.3,
+        "drainSeconds": 1.5
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#4CC9F0",
+        "glow": "#A3CEFF",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "upper-pad",
+          "shape": {
+            "type": "circle",
+            "radius": 0.26
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": []
+    }
+  ],
+  "lasers": [
+    {
+      "id": "ceiling-barrier",
+      "color": "#FF6B6B",
+      "thickness": 0.52,
+      "kind": {
+        "type": "segment",
+        "segment": {
+          "start": {
+            "x": -1.0,
+            "y": 0.5
+          },
+          "end": {
+            "x": 1.0,
+            "y": 0.5
+          }
+        }
+      }
+    }
+  ],
+  "unlocks": []
+}

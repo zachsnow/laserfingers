@@ -27,6 +27,16 @@ final class LaserGameScene: SKScene {
         node.name = "GameplayBackgroundImage"
         return node
     }()
+    private let ambientLightNode: SKLightNode = {
+        let node = SKLightNode()
+        node.categoryBitMask = LightingMask.laser
+        node.falloff = 0
+        node.lightColor = SKColor(white: 1, alpha: 0.18)
+        node.ambientColor = SKColor(white: 0.2, alpha: 0.25)
+        node.isEnabled = true
+        node.zPosition = -110
+        return node
+    }()
     private var buttonStates: [ButtonRuntime] = []
     private var laserStates: [LaserRuntime] = []
     private var laserIndexById: [String: Int] = [:]
@@ -74,6 +84,7 @@ final class LaserGameScene: SKScene {
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
         updateBackgroundImageLayout()
+        updateAmbientLightLayout()
         layoutScene()
         updateAlertOverlayFrame()
     }
@@ -92,6 +103,7 @@ final class LaserGameScene: SKScene {
         backgroundImageNode.removeFromParent()
         guard let texture = loadBackgroundTexture() else {
             backgroundColor = .black
+            addAmbientLight()
             return
         }
         backgroundColor = .black
@@ -99,6 +111,7 @@ final class LaserGameScene: SKScene {
         backgroundImageNode.size = texture.size()
         addChild(backgroundImageNode)
         updateBackgroundImageLayout()
+        addAmbientLight()
     }
     
     private func loadBackgroundTexture() -> SKTexture? {
@@ -148,6 +161,17 @@ final class LaserGameScene: SKScene {
         let referenceSize = backgroundImageNode.texture?.size() ?? CGSize(width: 1, height: 1)
         let scale = max(size.width / referenceSize.width, size.height / referenceSize.height)
         backgroundImageNode.size = CGSize(width: referenceSize.width * scale, height: referenceSize.height * scale)
+    }
+    
+    private func addAmbientLight() {
+        ambientLightNode.removeFromParent()
+        addChild(ambientLightNode)
+        updateAmbientLightLayout()
+    }
+    
+    private func updateAmbientLightLayout() {
+        guard ambientLightNode.parent != nil else { return }
+        ambientLightNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
     }
     
     private func addAlertOverlay() {
@@ -549,8 +573,8 @@ private class BaseLaserNode: SKNode, LaserObstacle {
         lightNode.falloff = 0.7
         lightNode.ambientColor = color.withAlphaComponent(0.2)
         lightNode.lightColor = color.withAlphaComponent(0.95)
-        lightNode.alpha = 0
-        lightNode.isEnabled = false
+        lightNode.alpha = 1.0
+        lightNode.isEnabled = true
         addChild(lightNode)
         
         addChild(beam)
@@ -569,16 +593,43 @@ private class BaseLaserNode: SKNode, LaserObstacle {
     func setFiring(active: Bool) {
         let stateChanged = firingState != active
         firingState = active
-        beam.alpha = active ? 1.0 : 0.05
-        glowShell.alpha = active ? glowShell.alpha : glowShell.alpha * 0.2
-        bloomNode.alpha = active ? 1.0 : 0.1
-        lightNode.isEnabled = active
+        updateVisualState(isActive: active)
         if stateChanged {
             if active {
                 didActivateLaser()
             } else {
                 didDeactivateLaser()
             }
+        }
+    }
+    
+    private func updateVisualState(isActive: Bool) {
+        if isActive {
+            beam.isHidden = false
+            glowShell.isHidden = false
+            bloomNode.isHidden = false
+            beam.isPaused = false
+            glowShell.isPaused = false
+            bloomNode.isPaused = false
+        } else {
+            beam.isHidden = true
+            glowShell.isHidden = true
+            bloomNode.isHidden = true
+            beam.isPaused = true
+            glowShell.isPaused = true
+            bloomNode.isPaused = true
+        }
+        updateLightState(isActive: isActive)
+    }
+    
+    private func updateLightState(isActive: Bool) {
+        if isActive {
+            lightNode.isPaused = false
+            lightNode.alpha = 1.0
+            lightNode.isEnabled = true
+        } else {
+            lightNode.isEnabled = false
+            lightNode.isPaused = true
         }
     }
     
@@ -1009,19 +1060,20 @@ private final class ButtonNode: SKNode {
     private func buildAreas(from specs: [Level.Button.HitArea]) {
         for spec in specs {
             let outline = SKShapeNode()
-            outline.fillColor = SKColor.black.withAlphaComponent(0.4)
-            outline.lineWidth = 2
-            outline.strokeColor = SKColor.fromHex(colorSpec.rim ?? colorSpec.fill, alpha: 0.65)
+            outline.fillColor = SKColor.black.withAlphaComponent(0.25)
+            outline.lineWidth = 3
+            outline.strokeColor = SKColor.white.withAlphaComponent(0.95)
+            outline.glowWidth = 10
             
             let fill = SKShapeNode()
-            fill.fillColor = SKColor.fromHex(colorSpec.fill)
+            fill.fillColor = SKColor.fromHex(colorSpec.fill).brightened(by: 0.2)
             fill.strokeColor = .clear
-            fill.alpha = 0.25
+            fill.alpha = 0.45
             
             let glow = SKShapeNode()
-            glow.fillColor = SKColor.fromHex(colorSpec.glow ?? colorSpec.fill, alpha: 0.3)
+            glow.fillColor = SKColor.white.withAlphaComponent(0.08)
             glow.strokeColor = .clear
-            glow.alpha = 0.1
+            glow.alpha = 0.2
             glow.blendMode = .add
             
             let container = SKNode()

@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+
+private let menuContentPadding: CGFloat = 16
+private let mainMenuContentWidth: CGFloat = 320
 import SpriteKit
 #if os(iOS)
 import UIKit
@@ -61,16 +64,17 @@ struct MainMenuView: View {
     @State private var backgroundScene = MenuBackgroundScene()
     
     var body: some View {
-        ZStack {
-            SpriteView(scene: backgroundScene, options: [.allowsTransparency])
-                .ignoresSafeArea()
-            Color.black.opacity(0.2).ignoresSafeArea()
-            VStack(spacing: 32) {
+        MenuScaffold(scene: backgroundScene, showDimOverlay: false) {
+            VStack(alignment: .leading, spacing: 32) {
                 Spacer()
                 Text("LASER\nFINGERS")
-                    .font(.system(size: 52, weight: .black, design: .rounded))
+                    .font(.system(size: 58, weight: .black, design: .rounded))
                     .kerning(4)
                     .foregroundColor(.white)
+                    .shadow(color: Color.pink.opacity(0.7), radius: 18, x: 0, y: 0)
+                    .shadow(color: Color.blue.opacity(0.35), radius: 32, x: 0, y: 0)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: mainMenuContentWidth, alignment: .leading)
                 VStack(spacing: 16) {
                     LaserButton(title: "Play") { coordinator.showLevelSelect() }
                     LaserButton(title: "Settings") { coordinator.showSettings() }
@@ -79,13 +83,15 @@ struct MainMenuView: View {
                     }
                     LaserButton(title: "About") { coordinator.showAbout() }
                 }
-                .frame(maxWidth: 320)
+                .frame(maxWidth: mainMenuContentWidth, alignment: .leading)
                 Text("Dodge the beams. Fill the gate.")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.8))
+                    .frame(maxWidth: mainMenuContentWidth, alignment: .leading)
                 Spacer()
             }
-            .padding(32)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(menuContentPadding)
         }
     }
 }
@@ -97,7 +103,7 @@ struct SettingsView: View {
     @State private var backgroundScene = MenuBackgroundScene()
     
     var body: some View {
-        MenuScaffold(scene: backgroundScene) {
+        MenuScaffold(scene: backgroundScene, showDimOverlay: true) {
             VStack(spacing: 24) {
                 Text("Settings")
                     .font(.title.bold())
@@ -110,6 +116,7 @@ struct SettingsView: View {
                 Spacer()
                 LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
+            .padding(menuContentPadding)
         }
     }
 }
@@ -119,7 +126,7 @@ struct AboutView: View {
     @State private var backgroundScene = MenuBackgroundScene()
     
     var body: some View {
-        MenuScaffold(scene: backgroundScene) {
+        MenuScaffold(scene: backgroundScene, showDimOverlay: true) {
             VStack(spacing: 16) {
                 Text("About")
                     .font(.title.bold())
@@ -131,6 +138,7 @@ struct AboutView: View {
                 Spacer()
                 LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
+            .padding(menuContentPadding)
         }
     }
 }
@@ -140,7 +148,7 @@ struct AdvancedMenuView: View {
     @State private var backgroundScene = MenuBackgroundScene()
     
     var body: some View {
-        MenuScaffold(scene: backgroundScene) {
+        MenuScaffold(scene: backgroundScene, showDimOverlay: true) {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Advanced Tools")
                     .font(.title.bold())
@@ -158,6 +166,7 @@ struct AdvancedMenuView: View {
                 Spacer()
                 LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
+            .padding(menuContentPadding)
         }
     }
 }
@@ -169,10 +178,7 @@ struct LevelSelectView: View {
     @State private var backgroundScene = MenuBackgroundScene()
     
     var body: some View {
-        ZStack {
-            SpriteView(scene: backgroundScene, options: [.allowsTransparency])
-                .ignoresSafeArea()
-            Color.black.opacity(0.25).ignoresSafeArea()
+        MenuScaffold(scene: backgroundScene) {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Level Select")
                     .font(.title.bold())
@@ -189,7 +195,7 @@ struct LevelSelectView: View {
                     coordinator.goToMainMenu()
                 }
             }
-            .padding()
+            .padding(menuContentPadding)
         }
     }
 }
@@ -197,7 +203,7 @@ struct LevelSelectView: View {
 struct LevelPackSection: View {
     let entry: LevelPackProgress
     let startLevel: (Level) -> Void
-    private let columns = [GridItem(.adaptive(minimum: 72), spacing: 12)]
+    private let columns = [GridItem(.adaptive(minimum: 56), spacing: 12)]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -555,7 +561,7 @@ struct PauseOverlay: View {
                     LaserButton(title: "Exit", style: .secondary, action: exitAction)
                 }
             }
-            .padding(32)
+            .padding(menuContentPadding)
             .background(Color.black.opacity(0.8))
             .cornerRadius(24)
             .shadow(color: .black.opacity(0.4), radius: 20)
@@ -586,9 +592,11 @@ struct PauseButton: View {
 struct MenuScaffold<Content: View>: View {
     @State private var scene: MenuBackgroundScene
     let content: Content
+    let showDimOverlay: Bool
     
-    init(scene: MenuBackgroundScene, @ViewBuilder content: () -> Content) {
+    init(scene: MenuBackgroundScene, showDimOverlay: Bool = true, @ViewBuilder content: () -> Content) {
         self._scene = State(initialValue: scene)
+        self.showDimOverlay = showDimOverlay
         self.content = content()
     }
     
@@ -596,13 +604,15 @@ struct MenuScaffold<Content: View>: View {
         ZStack {
             SpriteView(scene: scene, options: [.allowsTransparency])
                 .ignoresSafeArea()
-            Color.black.opacity(0.4).ignoresSafeArea()
+            if showDimOverlay {
+                Color.black.opacity(0.55)
+                    .blendMode(.multiply)
+                    .ignoresSafeArea()
+            }
             content
-                .padding()
-                .frame(maxWidth: 480)
-                .background(Color.black.opacity(0.45))
-                .cornerRadius(24)
-                .padding()
+                .padding(menuContentPadding)
+                .frame(maxWidth: 520)
+                .padding(menuContentPadding)
         }
     }
 }

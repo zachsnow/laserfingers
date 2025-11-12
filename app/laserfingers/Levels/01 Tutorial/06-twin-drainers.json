@@ -1,0 +1,117 @@
+{
+  "id": "tutorial-drainers-01",
+  "title": "Twin Drainers",
+  "description": "Balance both pads while the sweepers collapse toward center.",
+  "backgroundImage": "../../Images/bg.jpg",
+  "maxTouches": 2,
+  "lives": 1,
+  "buttons": [
+    {
+      "id": "west-drainer",
+      "position": {
+        "x": -0.5,
+        "y": 0.0
+      },
+      "timing": {
+        "chargeSeconds": 1.6,
+        "holdSeconds": 0,
+        "drainSeconds": 1.4
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#FF6B6B",
+        "glow": "#FFD6A5",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "west-pad",
+          "shape": {
+            "type": "circle",
+            "radius": 0.26
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": []
+    },
+    {
+      "id": "east-drainer",
+      "position": {
+        "x": 0.5,
+        "y": 0.0
+      },
+      "timing": {
+        "chargeSeconds": 1.6,
+        "holdSeconds": 0,
+        "drainSeconds": 1.4
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#4CC9F0",
+        "glow": "#A3CEFF",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "east-pad",
+          "shape": {
+            "type": "circle",
+            "radius": 0.26
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": []
+    }
+  ],
+  "lasers": [
+    {
+      "id": "west-to-center-sweeper",
+      "color": "#FFAA2C",
+      "thickness": 0.02,
+      "kind": {
+        "type": "sweeper",
+        "sweeper": {
+          "start": {
+            "x": -1.0,
+            "y": 0.0
+          },
+          "end": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "sweepSeconds": 1.0
+        }
+      }
+    },
+    {
+      "id": "east-to-center-sweeper",
+      "color": "#48CAE4",
+      "thickness": 0.02,
+      "kind": {
+        "type": "sweeper",
+        "sweeper": {
+          "start": {
+            "x": 1.0,
+            "y": 0.0
+          },
+          "end": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "sweepSeconds": 1.0
+        }
+      }
+    }
+  ],
+  "unlocks": []
+}
