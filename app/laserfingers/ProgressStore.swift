@@ -15,15 +15,18 @@ final class ProgressStore {
     
     private struct StoredLevelProgress: Codable {
         let levelId: String
+        let uuid: String?
         let state: LevelProgress.State
         
         private enum CodingKeys: String, CodingKey {
             case levelId
+            case uuid
             case state
         }
         
-        init(levelId: String, state: LevelProgress.State) {
+        init(levelId: String, uuid: String?, state: LevelProgress.State) {
             self.levelId = levelId
+            self.uuid = uuid
             self.state = state
         }
         
@@ -36,6 +39,7 @@ final class ProgressStore {
             } else {
                 levelId = ""
             }
+            uuid = try? container.decodeIfPresent(String.self, forKey: .uuid)
             state = (try? container.decode(LevelProgress.State.self, forKey: .state)) ?? .locked
         }
     }
@@ -73,16 +77,23 @@ final class ProgressStore {
         else {
             return defaultProgress
         }
-        let stateMap = Dictionary(uniqueKeysWithValues: stored.map { ($0.levelId, $0.state) })
+        let stateMap = Dictionary(stored.map { (($0.uuid ?? $0.levelId), $0.state) }) { current, _ in current }
         return levels.enumerated().map { index, level in
             let fallbackState: LevelProgress.State = index == 0 ? .unlocked : .locked
-            let state = stateMap[level.id] ?? fallbackState
+            let key = level.uuid?.uuidString ?? level.id
+            let state = stateMap[key] ?? fallbackState
             return LevelProgress(level: level, state: state)
         }
     }
     
     func saveProgress(_ entries: [LevelProgress]) {
-        let stored = entries.map { StoredLevelProgress(levelId: $0.level.id, state: $0.state) }
+        let stored = entries.map {
+            StoredLevelProgress(
+                levelId: $0.level.id,
+                uuid: $0.level.uuid?.uuidString,
+                state: $0.state
+            )
+        }
         guard let data = try? encoder.encode(stored) else { return }
         defaults.set(data, forKey: Keys.progress)
     }

@@ -120,37 +120,55 @@ final class LaserGameScene: SKScene {
     }
     
     private func resolveBackgroundImagePath() -> String? {
-        guard let backgroundImage = level.backgroundImage else { return nil }
-        guard let directory = level.directory else {
-            FatalErrorReporter.report("Level \(level.id) specified background image \(backgroundImage) but no source directory was recorded.")
-            return nil
-        }
-        let resolvedURL = URL(fileURLWithPath: backgroundImage, relativeTo: directory).standardizedFileURL
+        guard let backgroundImage = level.backgroundImage,
+              let directory = level.directory else { return nil }
         let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: resolvedURL.path) else {
-            FatalErrorReporter.report("Background image \(backgroundImage) for level \(level.id) does not exist at \(resolvedURL.path).")
-            return nil
+        let primaryURL = URL(fileURLWithPath: backgroundImage, relativeTo: directory).standardizedFileURL
+        
+        if fileManager.fileExists(atPath: primaryURL.path),
+           let bundleRelative = bundleRelativePath(for: primaryURL) {
+            return bundleRelative
         }
-        guard let bundleRoot = Bundle.main.resourceURL?.standardizedFileURL else {
-            FatalErrorReporter.report("Unable to resolve bundle resource path when loading level \(level.id) background image.")
-            return nil
+        
+        if !isDirectoryInsideBundle(directory),
+           let sanitized = sanitizedBundleResourcePath(backgroundImage),
+           let bundleRoot = Bundle.main.resourceURL?.standardizedFileURL {
+            let fallbackURL = bundleRoot.appendingPathComponent(sanitized).standardizedFileURL
+            if fileManager.fileExists(atPath: fallbackURL.path),
+               let bundleRelative = bundleRelativePath(for: fallbackURL) {
+                return bundleRelative
+            }
         }
-        let resourcePath = resolvedURL.path
+        return nil
+    }
+    
+    private func bundleRelativePath(for url: URL) -> String? {
+        guard let bundleRoot = Bundle.main.resourceURL?.standardizedFileURL else { return nil }
+        let resourcePath = url.standardizedFileURL.path
         let bundlePath = bundleRoot.path
-        guard resourcePath.hasPrefix(bundlePath) else {
-            FatalErrorReporter.report("Background image \(backgroundImage) for level \(level.id) resolves outside of the app bundle.")
-            return nil
+        guard resourcePath.hasPrefix(bundlePath) else { return nil }
+        let startIndex = resourcePath.index(resourcePath.startIndex, offsetBy: bundlePath.count)
+        let trimmed = resourcePath[startIndex...]
+        let cleaned = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return cleaned.isEmpty ? nil : cleaned
+    }
+    
+    private func sanitizedBundleResourcePath(_ path: String) -> String? {
+        var trimmed = path
+        while trimmed.hasPrefix("../") {
+            trimmed.removeFirst(3)
         }
-        guard resourcePath.count > bundlePath.count else {
-            FatalErrorReporter.report("Failed to compute relative path for background image \(backgroundImage) in level \(level.id).")
-            return nil
+        while trimmed.hasPrefix("./") {
+            trimmed.removeFirst(2)
         }
-        let startIndex = resourcePath.index(resourcePath.startIndex, offsetBy: bundlePath.count + 1)
-        guard startIndex <= resourcePath.endIndex else {
-            FatalErrorReporter.report("Failed to compute relative path for background image \(backgroundImage) in level \(level.id).")
-            return nil
-        }
-        return String(resourcePath[startIndex...])
+        trimmed = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return trimmed.isEmpty ? nil : trimmed
+    }
+    
+    private func isDirectoryInsideBundle(_ directory: URL) -> Bool {
+        guard let bundleRoot = Bundle.main.resourceURL?.standardizedFileURL else { return false }
+        let dirPath = directory.standardizedFileURL.path
+        return dirPath.hasPrefix(bundleRoot.path)
     }
     
     private func updateBackgroundImageLayout() {

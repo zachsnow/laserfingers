@@ -142,6 +142,7 @@ struct Level: Identifiable, Codable, Hashable {
     let lasers: [Laser]
     let unlocks: [String]?
     let backgroundImage: String?
+    var uuid: UUID?
     private(set) var directory: URL?
     
     private enum CodingKeys: String, CodingKey {
@@ -155,6 +156,7 @@ struct Level: Identifiable, Codable, Hashable {
         case lasers
         case unlocks
         case backgroundImage
+        case uuid
     }
     
     init(
@@ -168,6 +170,7 @@ struct Level: Identifiable, Codable, Hashable {
         lasers: [Laser],
         unlocks: [String]?,
         backgroundImage: String?,
+        uuid: UUID? = nil,
         directory: URL? = nil
     ) {
         self.id = id
@@ -180,6 +183,7 @@ struct Level: Identifiable, Codable, Hashable {
         self.lasers = lasers
         self.unlocks = unlocks
         self.backgroundImage = backgroundImage
+        self.uuid = uuid
         self.directory = directory
     }
     
@@ -195,6 +199,7 @@ struct Level: Identifiable, Codable, Hashable {
         lasers = try container.decode([Laser].self, forKey: .lasers)
         unlocks = try container.decodeIfPresent([String].self, forKey: .unlocks)
         backgroundImage = try container.decodeIfPresent(String.self, forKey: .backgroundImage)
+        uuid = try container.decodeIfPresent(UUID.self, forKey: .uuid)
         directory = nil
     }
     
@@ -210,6 +215,7 @@ struct Level: Identifiable, Codable, Hashable {
         try container.encode(lasers, forKey: .lasers)
         try container.encodeIfPresent(unlocks, forKey: .unlocks)
         try container.encodeIfPresent(backgroundImage, forKey: .backgroundImage)
+        try container.encodeIfPresent(uuid, forKey: .uuid)
     }
 }
 
@@ -221,6 +227,10 @@ extension Level {
     
     mutating func setDirectory(_ url: URL) {
         directory = url
+    }
+    
+    mutating func setUUID(_ uuid: UUID?) {
+        self.uuid = uuid
     }
 }
 

@@ -96,7 +96,7 @@ final class AppCoordinator: ObservableObject {
     
     func startLevel(_ level: Level) {
         guard loadErrorMessage == nil else { return }
-        guard let progressIndex = levelProgress.firstIndex(where: { $0.level.id == level.id }) else { return }
+        guard let progressIndex = indexOfLevel(level, in: levelProgress) else { return }
         guard levelProgress[progressIndex].state != .locked else { return }
         if levelProgress[progressIndex].state == .unlocked {
             levelProgress[progressIndex].state = .inProgress
@@ -152,11 +152,15 @@ final class AppCoordinator: ObservableObject {
     
     func levelPackEntries() -> [LevelPackProgress] {
         normalizePackUnlockStates()
-        let progressMap = Dictionary(uniqueKeysWithValues: levelProgress.map { ($0.level.id, $0) })
-        return levelPacks.map { pack in
+        let progressMap = Dictionary(levelProgress.map { (progressKey(for: $0.level), $0) }) { existing, new in
+            existing.state == .completed ? existing : new
+        }
+        return levelPacks.compactMap { pack in
             let entries = pack.levels.map { level in
-                progressMap[level.id] ?? LevelProgress(level: level, state: .locked)
+                let key = progressKey(for: level)
+                return progressMap[key] ?? LevelProgress(level: level, state: .locked)
             }
+            guard !entries.isEmpty else { return nil }
             return LevelPackProgress(pack: pack, levels: entries)
         }
     }
@@ -171,9 +175,9 @@ final class AppCoordinator: ObservableObject {
         return levels[index + 1]
     }
     
-    func reloadLevels(unlocking levelID: String? = nil) {
+    func reloadLevels(unlocking level: Level? = nil) {
         do {
-            try reloadLevelsInternal(unlocking: levelID)
+            try reloadLevelsInternal(unlocking: level)
             loadErrorMessage = nil
         } catch {
             loadErrorMessage = String(describing: error)
@@ -181,7 +185,7 @@ final class AppCoordinator: ObservableObject {
     }
     
     private func recordVictory(for level: Level) {
-        guard let idx = levelProgress.firstIndex(where: { $0.level.id == level.id }) else { return }
+        guard let idx = indexOfLevel(level, in: levelProgress) else { return }
         var updated = levelProgress
         guard updated[idx].state != .completed else { return }
         updated[idx].state = .completed
@@ -203,14 +207,14 @@ final class AppCoordinator: ObservableObject {
         guard let packIndex = levelPacks.firstIndex(where: { $0.levels.contains(level) }) else { return }
         let completedPackLevels = levelPacks[packIndex].levels
         let isPackComplete = completedPackLevels.allSatisfy { packLevel in
-            progress.first(where: { $0.level.id == packLevel.id })?.state == .completed
+            progress.first(where: { progressKey(for: $0.level) == progressKey(for: packLevel) })?.state == .completed
         }
         guard isPackComplete else { return }
         let nextPackIndex = packIndex + 1
         guard nextPackIndex < levelPacks.count else { return }
         let nextPack = levelPacks[nextPackIndex]
         for level in nextPack.levels {
-            if let idx = progress.firstIndex(where: { $0.level.id == level.id }),
+            if let idx = indexOfLevel(level, in: progress),
                progress[idx].state == .locked {
                 progress[idx].state = .unlocked
                 break
@@ -259,7 +263,7 @@ final class AppCoordinator: ObservableObject {
             var hasProgress = false
             
             for level in pack.levels {
-                guard let progressIndex = updated.firstIndex(where: { $0.level.id == level.id }) else { continue }
+                guard let progressIndex = indexOfLevel(level, in: updated) else { continue }
                 let state = updated[progressIndex].state
                 if state != .locked {
                     hasProgress = true
@@ -287,6 +291,15 @@ final class AppCoordinator: ObservableObject {
         }
     }
     
+    private func progressKey(for level: Level) -> String {
+        level.uuid?.uuidString ?? level.id
+    }
+    
+    private func indexOfLevel(_ level: Level, in progress: [LevelProgress]) -> Int? {
+        let key = progressKey(for: level)
+        return progress.firstIndex { progressKey(for: $0.level) == key }
+    }
+    
     func presentImportSheet(initialPayload: String?) {
         importSheetState = ImportSheetState(initialPayload: initialPayload)
     }
@@ -296,7 +309,18 @@ final class AppCoordinator: ObservableObject {
     }
     
     func handleImportSuccess(level: Level) {
-        reloadLevels(unlocking: level.id)
+        reloadLevels(unlocking: level)
+    }
+    
+    func deleteDownloadedLevel(_ level: Level) {
+        do {
+            let deleted = try LevelRepository.deleteDownloadedLevel(uuid: level.uuid, id: level.id)
+            if deleted {
+                reloadLevels()
+            }
+        } catch {
+            loadErrorMessage = String(describing: error)
+        }
     }
     
     func handleIncomingURL(_ url: URL) {
@@ -325,13 +349,13 @@ final class AppCoordinator: ObservableObject {
         return decoded
     }
     
-    private func reloadLevelsInternal(unlocking levelID: String?) throws {
+    private func reloadLevelsInternal(unlocking level: Level?) throws {
         let loadedPacks = try LevelRepository.load()
         levelPacks = loadedPacks
         levels = loadedPacks.flatMap { $0.levels }
         var progress = progressStore.loadProgress(for: levels)
-        if let levelID,
-           let index = progress.firstIndex(where: { $0.level.id == levelID }),
+        if let level,
+           let index = indexOfLevel(level, in: progress),
            progress[index].state == .locked {
             progress[index].state = .unlocked
         }

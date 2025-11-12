@@ -2,9 +2,8 @@ import Foundation
 
 struct LevelImportManager {
     struct PreparedImport {
-        let level: Level
-        let encodedData: Data
-        let existingFileURL: URL?
+        var level: Level
+        let match: LevelRepository.DownloadedLevelInfo?
         fileprivate let slug: String
     }
     
@@ -50,14 +49,8 @@ struct LevelImportManager {
         do {
             var level = try decoder.decode(Level.self, from: rawData)
             level.setDirectory(try LevelRepository.downloadedLevelsDirectory())
-            let encoded = try encoder.encode(level)
-            let existing = try existingFileURL(for: level.id)
-            return PreparedImport(
-                level: level,
-                encodedData: encoded,
-                existingFileURL: existing,
-                slug: slug(for: level)
-            )
+            let match = try LevelRepository.downloadedLevelMatch(for: level)
+            return PreparedImport(level: level, match: match, slug: slug(for: level))
         } catch let decodeError as DecodingError {
             throw ImportError.invalidJSON(decodingErrorDescription(decodeError))
         } catch let repoError as LevelRepository.LoadingError {
@@ -67,18 +60,24 @@ struct LevelImportManager {
         }
     }
     
-    func persist(_ prepared: PreparedImport, overwrite: Bool) throws -> URL {
+    func persist(_ prepared: PreparedImport, overwrite: Bool) throws -> Level {
+        var level = prepared.level
         let directory = try LevelRepository.downloadedLevelsDirectory()
         let targetURL: URL
-        if overwrite, let existing = prepared.existingFileURL {
-            targetURL = existing
+        if overwrite, let match = prepared.match {
+            targetURL = match.url
+            if let existingUUID = match.metadata.uuid {
+                level.setUUID(existingUUID)
+            }
         } else {
+            level.setUUID(UUID())
             let sequence = (try highestSequenceNumber(in: directory) ?? 0) + 1
             let filename = String(format: "%02d-%@.json", sequence, prepared.slug)
             targetURL = directory.appendingPathComponent(filename, isDirectory: false)
         }
-        try prepared.encodedData.write(to: targetURL, options: [.atomic])
-        return targetURL
+        let data = try encoder.encode(level)
+        try data.write(to: targetURL, options: [.atomic])
+        return level
     }
     
     // MARK: - Helpers
@@ -100,26 +99,6 @@ struct LevelImportManager {
         let remainder = input.count % 4
         guard remainder != 0 else { return "" }
         return String(repeating: "=", count: 4 - remainder)
-    }
-    
-    private func existingFileURL(for levelID: String) throws -> URL? {
-        guard !levelID.isEmpty else { return nil }
-        let directory = try LevelRepository.downloadedLevelsDirectory()
-        let fileManager = FileManager.default
-        let files = try fileManager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ).filter { $0.pathExtension.lowercased() == "json" }
-        for file in files {
-            guard let data = try? Data(contentsOf: file),
-                  let metadata = try? decoder.decode(LevelIDProbe.self, from: data)
-            else { continue }
-            if metadata.id == levelID {
-                return file
-            }
-        }
-        return nil
     }
     
     private func highestSequenceNumber(in directory: URL) throws -> Int? {
@@ -202,8 +181,4 @@ struct LevelImportManager {
             return nil
         }
     }
-}
-
-private struct LevelIDProbe: Decodable {
-    let id: String
 }

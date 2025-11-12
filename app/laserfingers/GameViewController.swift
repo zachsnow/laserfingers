@@ -189,9 +189,17 @@ struct LevelSelectView: View {
                 ScrollView {
                     VStack(spacing: 20) {
                         ForEach(coordinator.levelPackEntries()) { packEntry in
-                            LevelPackSection(entry: packEntry) { level in
-                                coordinator.startLevel(level)
-                            }
+                            let isDownloaded = LevelRepository.isDownloadedPack(packEntry.pack)
+                            LevelPackSection(
+                                entry: packEntry,
+                                isDownloadedPack: isDownloaded,
+                                startLevel: { level in
+                                    coordinator.startLevel(level)
+                                },
+                                deleteLevel: isDownloaded ? { level in
+                                    coordinator.deleteDownloadedLevel(level)
+                                } : nil
+                            )
                         }
                     }
                 }
@@ -206,7 +214,9 @@ struct LevelSelectView: View {
 
 struct LevelPackSection: View {
     let entry: LevelPackProgress
+    let isDownloadedPack: Bool
     let startLevel: (Level) -> Void
+    let deleteLevel: ((Level) -> Void)?
     private let columns = [GridItem(.adaptive(minimum: 56), spacing: 12)]
     
     var body: some View {
@@ -221,9 +231,13 @@ struct LevelPackSection: View {
             }
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(entry.levels) { levelEntry in
-                    LevelIconButton(entry: levelEntry) {
-                        startLevel(levelEntry.level)
-                    }
+                    LevelIconButton(
+                        entry: levelEntry,
+                        action: { startLevel(levelEntry.level) },
+                        deleteAction: isDownloadedPack ? {
+                            deleteLevel?(levelEntry.level)
+                        } : nil
+                    )
                 }
             }
         }
@@ -249,6 +263,13 @@ struct LevelPackSection: View {
 struct LevelIconButton: View {
     let entry: LevelProgress
     let action: () -> Void
+    let deleteAction: (() -> Void)?
+    @EnvironmentObject private var coordinator: AppCoordinator
+    private let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return encoder
+    }()
     
     var body: some View {
         Button(action: action) {
@@ -263,6 +284,20 @@ struct LevelIconButton: View {
         .buttonStyle(.plain)
         .disabled(entry.state == .locked)
         .opacity(entry.state == .locked ? 0.35 : 1)
+        .contextMenu {
+            if coordinator.settings.advancedModeEnabled {
+                Button {
+                    copyLevelJSON(entry.level)
+                } label: {
+                    Label("Copy Level JSON", systemImage: "doc.on.doc")
+                }
+            }
+            if let deleteAction {
+                Button(role: .destructive, action: deleteAction) {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
     }
     
     private var statusIcon: some View {
@@ -289,6 +324,17 @@ struct LevelIconButton: View {
         case .inProgress: return Color.orange.opacity(0.15)
         case .locked: return Color.white.opacity(0.08)
         }
+    }
+    
+    private func copyLevelJSON(_ level: Level) {
+        guard let data = try? encoder.encode(level),
+              let json = String(data: data, encoding: .utf8) else { return }
+#if os(iOS)
+        UIPasteboard.general.string = json
+#elseif os(macOS)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(json, forType: .string)
+#endif
     }
 }
 
@@ -628,8 +674,8 @@ struct LevelImportSheet: View {
     @State private var statusMessage: String?
     @State private var statusColor: Color = .white.opacity(0.8)
     @State private var importSuccess: Level?
-    @State private var preparedImport: LevelImportManager.PreparedImport?
-    @State private var showOverwriteAlert = false
+    @State private var pendingConflictImport: LevelImportManager.PreparedImport?
+    @State private var showConflictDialog = false
     @State private var isProcessing = false
     
     private var importManager = LevelImportManager()
@@ -701,7 +747,7 @@ struct LevelImportSheet: View {
                         }
                         .foregroundColor(.white.opacity(0.8))
                         Spacer()
-                        Button(action: { beginImport(overwrite: false) }) {
+                    Button(action: startImport) {
                             if isProcessing {
                                 ProgressView()
                                     .progressViewStyle(.circular)
@@ -728,7 +774,7 @@ struct LevelImportSheet: View {
                         proxy.scrollTo("ImportStatusMessage", anchor: .bottom)
                     }
                 }
-                .onChange(of: importSuccess?.id) { _ in
+                .onChange(of: importSuccessKey) { _ in
                     if importSuccess != nil {
                         withAnimation {
                             proxy.scrollTo("ImportSuccessMessage", anchor: .bottom)
@@ -744,57 +790,69 @@ struct LevelImportSheet: View {
                     }
                 }
             }
-            .alert("Overwrite existing level?", isPresented: $showOverwriteAlert, presenting: preparedImport) { prepared in
+            .confirmationDialog("Level already exists", isPresented: $showConflictDialog, presenting: pendingConflictImport) { prepared in
                 Button("Overwrite", role: .destructive) {
+                    pendingConflictImport = nil
                     finalizeImport(prepared: prepared, overwrite: true)
                 }
+                Button("Create New Copy") {
+                    pendingConflictImport = nil
+                    finalizeImport(prepared: prepared, overwrite: false)
+                }
                 Button("Cancel", role: .cancel) {
-                    preparedImport = nil
+                    pendingConflictImport = nil
                 }
             } message: { prepared in
-                Text("A downloaded level with the id “\(prepared.level.id)” already exists. Do you want to overwrite it?")
+                Text("“\(prepared.level.title)” already exists in Downloaded. Overwrite it or create a new copy?")
             }
         }
         .presentationDetents([.medium, .large])
         .interactiveDismissDisabled(isProcessing)
     }
     
-    private func beginImport(overwrite: Bool) {
+    private func startImport() {
         statusMessage = nil
         importSuccess = nil
-        isProcessing = true
-        defer { isProcessing = false }
+        pendingConflictImport = nil
+        showConflictDialog = false
         do {
             let prepared = try importManager.prepareImport(from: payload)
-            if prepared.existingFileURL != nil && !overwrite {
-                preparedImport = prepared
-                showOverwriteAlert = true
+            if prepared.match != nil {
+                pendingConflictImport = prepared
+                showConflictDialog = true
                 return
             }
-            finalizeImport(prepared: prepared, overwrite: overwrite)
+            finalizeImport(prepared: prepared, overwrite: false)
         } catch {
             statusMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             statusColor = .red
+            isProcessing = false
         }
     }
     
     private func finalizeImport(prepared: LevelImportManager.PreparedImport, overwrite: Bool) {
+        isProcessing = true
         do {
-            _ = try importManager.persist(prepared, overwrite: overwrite)
-            coordinator.handleImportSuccess(level: prepared.level)
-            statusMessage = "Imported “\(prepared.level.title)” successfully."
+            let savedLevel = try importManager.persist(prepared, overwrite: overwrite)
+            coordinator.handleImportSuccess(level: savedLevel)
+            statusMessage = "Imported “\(savedLevel.title)” successfully."
             statusColor = .green
-            importSuccess = prepared.level
-            preparedImport = nil
-            showOverwriteAlert = false
+            importSuccess = savedLevel
             payload = ""
         } catch {
             statusMessage = error.localizedDescription
             statusColor = .red
         }
+        isProcessing = false
     }
     
     private func startImportedLevel(_ level: Level) {
+        if let uuid = level.uuid,
+           let entry = coordinator.levelProgress.first(where: { $0.level.uuid == uuid }) {
+            coordinator.startLevel(entry.level)
+            closeSheet()
+            return
+        }
         if let entry = coordinator.levelProgress.first(where: { $0.level.id == level.id }) {
             coordinator.startLevel(entry.level)
             closeSheet()
@@ -804,6 +862,10 @@ struct LevelImportSheet: View {
     private func closeSheet() {
         coordinator.dismissImportSheet()
         dismiss()
+    }
+    
+    private var importSuccessKey: String? {
+        importSuccess?.uuid?.uuidString ?? importSuccess?.id
     }
     
 }

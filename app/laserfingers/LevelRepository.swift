@@ -2,6 +2,17 @@ import Foundation
 
 enum LevelRepository {
     private static let downloadedDirectoryName = "99 Downloaded"
+    private static let levelDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .useDefaultKeys
+        return decoder
+    }()
+    private static let metadataDecoder = JSONDecoder()
+    
+    struct DownloadedLevelInfo {
+        let url: URL
+        let metadata: DownloadedLevelMetadata
+    }
     
     enum LoadingError: Swift.Error, CustomStringConvertible {
         case missingResourceDirectory(String)
@@ -24,16 +35,18 @@ enum LevelRepository {
     }
     
     static func load() throws -> [LevelPack] {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .useDefaultKeys
         let device = DeviceProfile.current
         let bundlePacks = try loadPacks(
             in: try resolveBundleLevelsDirectory(),
-            decoder: decoder,
+            decoder: levelDecoder,
             device: device
         )
-        let downloadedPack = try loadDownloadedPack(decoder: decoder, device: device)
+        let downloadedPack = try loadDownloadedPack(decoder: levelDecoder, device: device)
         return bundlePacks + [downloadedPack]
+    }
+    
+    static func isDownloadedPack(_ pack: LevelPack) -> Bool {
+        pack.directoryName == downloadedDirectoryName
     }
     
     static func downloadedLevelsDirectory() throws -> URL {
@@ -103,6 +116,29 @@ enum LevelRepository {
         )
     }
     
+    static func downloadedLevelMatch(for level: Level) throws -> DownloadedLevelInfo? {
+        let entries = try enumerateDownloadedLevels()
+        if let uuid = level.uuid,
+           let match = entries.first(where: { $0.metadata.uuid == uuid }) {
+            return match
+        }
+        return entries.first(where: { $0.metadata.id == level.id })
+    }
+    
+    @discardableResult
+    static func deleteDownloadedLevel(uuid: UUID?, id: String) throws -> Bool {
+        let entries = try enumerateDownloadedLevels()
+        let target = entries.first(where: {
+            if let uuid, let candidate = $0.metadata.uuid {
+                return candidate == uuid
+            }
+            return $0.metadata.id == id
+        })
+        guard let info = target else { return false }
+        try FileManager.default.removeItem(at: info.url)
+        return true
+    }
+    
     private static func directoryContents(at url: URL) throws -> [URL] {
         let fileManager = FileManager.default
         do {
@@ -141,6 +177,22 @@ enum LevelRepository {
         }
     }
     
+    private static func enumerateDownloadedLevels() throws -> [DownloadedLevelInfo] {
+        let directory = try downloadedLevelsDirectory()
+        let fileManager = FileManager.default
+        let files = try fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ).filter { $0.pathExtension.lowercased() == "json" }
+        return files.compactMap { url in
+            guard let data = try? Data(contentsOf: url),
+                  let metadata = try? metadataDecoder.decode(DownloadedLevelMetadata.self, from: data)
+            else { return nil }
+            return DownloadedLevelInfo(url: url, metadata: metadata)
+        }
+    }
+    
     private static func packDisplayName(for directoryName: String) -> String {
         let trimmed = directoryName.trimmingCharacters(in: .whitespaces)
         guard let regex = try? NSRegularExpression(pattern: #"^\d+\s*"#, options: []) else {
@@ -159,4 +211,9 @@ private extension FileManager {
         let exists = fileExists(atPath: url.path, isDirectory: &isDirectory)
         return exists && isDirectory.boolValue
     }
+}
+
+struct DownloadedLevelMetadata: Decodable {
+    let id: String
+    let uuid: UUID?
 }
