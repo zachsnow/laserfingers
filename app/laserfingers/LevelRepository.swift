@@ -1,10 +1,13 @@
 import Foundation
 
 enum LevelRepository {
+    private static let downloadedDirectoryName = "99 Downloaded"
+    
     enum LoadingError: Swift.Error, CustomStringConvertible {
         case missingResourceDirectory(String)
         case unreadableResource(URL, Swift.Error)
         case decodeFailure(URL, Swift.Error)
+        case storageUnavailable(Swift.Error)
         
         var description: String {
             switch self {
@@ -14,6 +17,8 @@ enum LevelRepository {
                 return "Unable to read resource at \(url.path): \(error)"
             case .decodeFailure(let url, let error):
                 return "Unable to decode level at \(url.lastPathComponent): \(error)"
+            case .storageUnavailable(let error):
+                return "Unable to access user level storage: \(error)"
             }
         }
     }
@@ -21,23 +26,43 @@ enum LevelRepository {
     static func load() throws -> [LevelPack] {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .useDefaultKeys
-        let baseURL = try resolveLevelsDirectory()
-        let packURLs = try directoryContents(at: baseURL)
         let device = DeviceProfile.current
-        return try packURLs.compactMap { packURL in
-            let levels = try loadLevels(in: packURL, decoder: decoder)
-                .filter { $0.supports(device) }
-            guard !levels.isEmpty else { return nil }
-            let directoryName = packURL.lastPathComponent
-            return LevelPack(
-                directoryName: directoryName,
-                name: packDisplayName(for: directoryName),
-                levels: levels
+        let bundlePacks = try loadPacks(
+            in: try resolveBundleLevelsDirectory(),
+            decoder: decoder,
+            device: device
+        )
+        let downloadedPack = try loadDownloadedPack(decoder: decoder, device: device)
+        return bundlePacks + [downloadedPack]
+    }
+    
+    static func downloadedLevelsDirectory() throws -> URL {
+        let fileManager = FileManager.default
+        do {
+            let appSupport = try fileManager.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
             )
+            let levelsRoot = appSupport.appendingPathComponent("Levels", isDirectory: true)
+            if !fileManager.directoryExists(at: levelsRoot) {
+                try fileManager.createDirectory(at: levelsRoot, withIntermediateDirectories: true)
+            }
+            var downloaded = levelsRoot.appendingPathComponent(downloadedDirectoryName, isDirectory: true)
+            if !fileManager.directoryExists(at: downloaded) {
+                try fileManager.createDirectory(at: downloaded, withIntermediateDirectories: true)
+            }
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            try downloaded.setResourceValues(resourceValues)
+            return downloaded
+        } catch {
+            throw LoadingError.storageUnavailable(error)
         }
     }
     
-    private static func resolveLevelsDirectory() throws -> URL {
+    private static func resolveBundleLevelsDirectory() throws -> URL {
         let fileManager = FileManager.default
         if let root = Bundle.main.resourceURL {
             let levelsURL = root.appendingPathComponent("Levels", isDirectory: true)
@@ -51,6 +76,31 @@ enum LevelRepository {
         }
         let bundlePath = Bundle.main.resourceURL?.path ?? Bundle.main.bundlePath
         throw LoadingError.missingResourceDirectory("\(bundlePath)/Levels")
+    }
+    
+    private static func loadPacks(in baseURL: URL, decoder: JSONDecoder, device: DeviceProfile.Kind) throws -> [LevelPack] {
+        let packURLs = try directoryContents(at: baseURL)
+        return try packURLs.compactMap { packURL in
+            let levels = try loadLevels(in: packURL, decoder: decoder)
+                .filter { $0.supports(device) }
+            guard !levels.isEmpty else { return nil }
+            return LevelPack(
+                directoryName: packURL.lastPathComponent,
+                name: packDisplayName(for: packURL.lastPathComponent),
+                levels: levels
+            )
+        }
+    }
+    
+    private static func loadDownloadedPack(decoder: JSONDecoder, device: DeviceProfile.Kind) throws -> LevelPack {
+        let directory = try downloadedLevelsDirectory()
+        let levels = try loadLevels(in: directory, decoder: decoder)
+            .filter { $0.supports(device) }
+        return LevelPack(
+            directoryName: downloadedDirectoryName,
+            name: packDisplayName(for: downloadedDirectoryName),
+            levels: levels
+        )
     }
     
     private static func directoryContents(at url: URL) throws -> [URL] {

@@ -6,15 +6,15 @@
 //
 
 import SwiftUI
-
-private let menuContentPadding: CGFloat = 16
-private let mainMenuContentWidth: CGFloat = 320
 import SpriteKit
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
 import AppKit
 #endif
+
+private let menuContentPadding: CGFloat = 16
+private let mainMenuContentWidth: CGFloat = 320
 
 struct RootContainerView: View {
     @EnvironmentObject private var coordinator: AppCoordinator
@@ -32,6 +32,9 @@ struct RootContainerView: View {
         .animation(.easeInOut, value: coordinator.screen)
         .animation(.easeInOut, value: coordinator.loadErrorMessage)
         .preferredColorScheme(.dark)
+        .sheet(item: $coordinator.importSheetState) { state in
+            LevelImportSheet(initialPayload: state.initialPayload)
+        }
     }
     
     @ViewBuilder
@@ -149,19 +152,20 @@ struct AdvancedMenuView: View {
     
     var body: some View {
         MenuScaffold(scene: backgroundScene, showDimOverlay: true) {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 20) {
                 Text("Advanced Tools")
                     .font(.title.bold())
                 Toggle("Infinite Slots", isOn: $coordinator.settings.infiniteSlotsEnabled)
                     .toggleStyle(SwitchToggleStyle(tint: .pink))
                     .accessibilityIdentifier("advanced_infinite_slots_toggle")
-                VStack(spacing: 12) {
-                    LaserButton(title: "Reset Progress") {
-                        coordinator.resetProgress()
-                    }
-                    LaserButton(title: "Unlock All Levels") {
-                        coordinator.unlockAllLevels()
-                    }
+                LaserButton(title: "Import Level Code") {
+                    coordinator.presentImportSheet(initialPayload: nil)
+                }
+                LaserButton(title: "Reset Progress") {
+                    coordinator.resetProgress()
+                }
+                LaserButton(title: "Unlock All Levels") {
+                    coordinator.unlockAllLevels()
                 }
                 Spacer()
                 LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
@@ -615,6 +619,193 @@ struct MenuScaffold<Content: View>: View {
                 .padding(menuContentPadding)
         }
     }
+}
+
+struct LevelImportSheet: View {
+    @EnvironmentObject private var coordinator: AppCoordinator
+    @Environment(\.dismiss) private var dismiss
+    @State private var payload: String
+    @State private var statusMessage: String?
+    @State private var statusColor: Color = .white.opacity(0.8)
+    @State private var importSuccess: Level?
+    @State private var preparedImport: LevelImportManager.PreparedImport?
+    @State private var showOverwriteAlert = false
+    @State private var isProcessing = false
+    
+    private var importManager = LevelImportManager()
+    private let initialPayload: String?
+    
+    init(initialPayload: String?) {
+        self.initialPayload = initialPayload
+        _payload = State(initialValue: initialPayload ?? "")
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollViewReader { proxy in
+                VStack(spacing: 20) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Paste a level JSON blob or a Base64 share code below.")
+                                .font(.footnote)
+                                .foregroundColor(.white.opacity(0.8))
+                        TextEditor(text: $payload)
+                            .frame(minHeight: 220)
+                            .padding(8)
+                            .background(Color.white.opacity(0.05))
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.white.opacity(0.15))
+                            )
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                            .keyboardType(.asciiCapable)
+                            if let message = statusMessage {
+                                Text(message)
+                                    .foregroundColor(statusColor)
+                                    .font(.subheadline)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.vertical, 4)
+                                    .id("ImportStatusMessage")
+                            }
+                            if let level = importSuccess {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Imported “\(level.title)”")
+                                        .font(.headline)
+                                        .id("ImportSuccessMessage")
+                                    Button {
+                                        startImportedLevel(level)
+                                    } label: {
+                                        Label("Play Now", systemImage: "play.fill")
+                                            .font(.headline)
+                                            .padding()
+                                            .frame(maxWidth: .infinity)
+                                            .background(LinearGradient(
+                                                colors: [.pink, .purple],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ))
+                                            .foregroundColor(.white)
+                                            .cornerRadius(16)
+                                    }
+                                }
+                                .padding(.top, 4)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    HStack {
+                        Button("Cancel") {
+                            closeSheet()
+                        }
+                        .foregroundColor(.white.opacity(0.8))
+                        Spacer()
+                        Button(action: { beginImport(overwrite: false) }) {
+                            if isProcessing {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .tint(.white)
+                                    .frame(width: 24, height: 24)
+                                    .padding(.vertical, 6)
+                                    .padding(.horizontal, 24)
+                            } else {
+                                Text("Import Level")
+                                    .font(.headline)
+                                    .padding(.vertical, 12)
+                                    .padding(.horizontal, 24)
+                            }
+                        }
+                        .disabled(payload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
+                        .background(isProcessing ? Color.white.opacity(0.15) : Color.pink)
+                        .foregroundColor(.white)
+                        .cornerRadius(12)
+                    }
+                }
+                .padding()
+                .onChange(of: statusMessage) { _ in
+                    withAnimation {
+                        proxy.scrollTo("ImportStatusMessage", anchor: .bottom)
+                    }
+                }
+                .onChange(of: importSuccess?.id) { _ in
+                    if importSuccess != nil {
+                        withAnimation {
+                            proxy.scrollTo("ImportSuccessMessage", anchor: .bottom)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Import Level")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        closeSheet()
+                    }
+                }
+            }
+            .alert("Overwrite existing level?", isPresented: $showOverwriteAlert, presenting: preparedImport) { prepared in
+                Button("Overwrite", role: .destructive) {
+                    finalizeImport(prepared: prepared, overwrite: true)
+                }
+                Button("Cancel", role: .cancel) {
+                    preparedImport = nil
+                }
+            } message: { prepared in
+                Text("A downloaded level with the id “\(prepared.level.id)” already exists. Do you want to overwrite it?")
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .interactiveDismissDisabled(isProcessing)
+    }
+    
+    private func beginImport(overwrite: Bool) {
+        statusMessage = nil
+        importSuccess = nil
+        isProcessing = true
+        defer { isProcessing = false }
+        do {
+            let prepared = try importManager.prepareImport(from: payload)
+            if prepared.existingFileURL != nil && !overwrite {
+                preparedImport = prepared
+                showOverwriteAlert = true
+                return
+            }
+            finalizeImport(prepared: prepared, overwrite: overwrite)
+        } catch {
+            statusMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            statusColor = .red
+        }
+    }
+    
+    private func finalizeImport(prepared: LevelImportManager.PreparedImport, overwrite: Bool) {
+        do {
+            _ = try importManager.persist(prepared, overwrite: overwrite)
+            coordinator.handleImportSuccess(level: prepared.level)
+            statusMessage = "Imported “\(prepared.level.title)” successfully."
+            statusColor = .green
+            importSuccess = prepared.level
+            preparedImport = nil
+            showOverwriteAlert = false
+            payload = ""
+        } catch {
+            statusMessage = error.localizedDescription
+            statusColor = .red
+        }
+    }
+    
+    private func startImportedLevel(_ level: Level) {
+        if let entry = coordinator.levelProgress.first(where: { $0.level.id == level.id }) {
+            coordinator.startLevel(entry.level)
+            closeSheet()
+        }
+    }
+    
+    private func closeSheet() {
+        coordinator.dismissImportSheet()
+        dismiss()
+    }
+    
 }
 
 struct LaserButton: View {

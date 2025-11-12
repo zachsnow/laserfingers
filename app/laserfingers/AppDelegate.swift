@@ -17,6 +17,9 @@ struct LaserfingersApp: App {
         WindowGroup {
             RootContainerView()
                 .environmentObject(coordinator)
+                .onOpenURL { url in
+                    coordinator.handleIncomingURL(url)
+                }
         }
         .defaultAppStorage(UserDefaults.standard)
     }
@@ -33,38 +36,32 @@ final class AppCoordinator: ObservableObject {
         case gameplay
         case advancedMenu
     }
-    
     @Published var screen: Screen = .mainMenu
     @Published var settings: GameSettings {
         didSet { progressStore.saveSettings(settings) }
     }
-    @Published private(set) var levelProgress: [LevelProgress]
+    @Published private(set) var levelProgress: [LevelProgress] = []
     @Published var activeGame: GameRuntime?
     @Published var loadErrorMessage: String?
+    @Published var importSheetState: ImportSheetState?
     
     private let progressStore = ProgressStore()
-    private let levelPacks: [LevelPack]
-    private let levels: [Level]
+    private var levelPacks: [LevelPack] = []
+    private var levels: [Level] = []
     private var cancellables: Set<AnyCancellable> = []
     
     init() {
         let storedSettings = progressStore.loadSettings()
         _settings = Published(initialValue: storedSettings)
         
-        let resolvedData: (packs: [LevelPack], levels: [Level], progress: [LevelProgress])
         do {
-            let loadedPacks = try LevelRepository.load()
-            let flattenedLevels = loadedPacks.flatMap { $0.levels }
-            let storedProgress = progressStore.loadProgress(for: flattenedLevels)
-            resolvedData = (loadedPacks, flattenedLevels, storedProgress)
+            try reloadLevelsInternal(unlocking: nil)
         } catch {
             loadErrorMessage = String(describing: error)
-            resolvedData = ([], [], [])
+            levelPacks = []
+            levels = []
+            levelProgress = []
         }
-        
-        self.levelPacks = resolvedData.packs
-        self.levels = resolvedData.levels
-        self.levelProgress = resolvedData.progress
         
         NotificationCenter.default.publisher(for: FatalErrorReporter.notification)
             .compactMap { $0.userInfo?["message"] as? String }
@@ -174,6 +171,15 @@ final class AppCoordinator: ObservableObject {
         return levels[index + 1]
     }
     
+    func reloadLevels(unlocking levelID: String? = nil) {
+        do {
+            try reloadLevelsInternal(unlocking: levelID)
+            loadErrorMessage = nil
+        } catch {
+            loadErrorMessage = String(describing: error)
+        }
+    }
+    
     private func recordVictory(for level: Level) {
         guard let idx = levelProgress.firstIndex(where: { $0.level.id == level.id }) else { return }
         var updated = levelProgress
@@ -280,6 +286,57 @@ final class AppCoordinator: ObservableObject {
             persistProgress()
         }
     }
+    
+    func presentImportSheet(initialPayload: String?) {
+        importSheetState = ImportSheetState(initialPayload: initialPayload)
+    }
+    
+    func dismissImportSheet() {
+        importSheetState = nil
+    }
+    
+    func handleImportSuccess(level: Level) {
+        reloadLevels(unlocking: level.id)
+    }
+    
+    func handleIncomingURL(_ url: URL) {
+        guard url.scheme?.lowercased() == "laserfingers" else { return }
+        let host = url.host?.lowercased()
+        switch host {
+        case "level":
+            if let payload = payload(from: url) {
+                presentImportSheet(initialPayload: payload)
+            }
+        default:
+            break
+        }
+    }
+    
+    private func payload(from url: URL) -> String? {
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        if let dataItem = components?.queryItems?.first(where: { $0.name == "data" }),
+           let value = dataItem.value,
+           !value.isEmpty {
+            return value.removingPercentEncoding ?? value
+        }
+        let trimmed = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard !trimmed.isEmpty else { return nil }
+        let decoded = trimmed.removingPercentEncoding ?? trimmed
+        return decoded
+    }
+    
+    private func reloadLevelsInternal(unlocking levelID: String?) throws {
+        let loadedPacks = try LevelRepository.load()
+        levelPacks = loadedPacks
+        levels = loadedPacks.flatMap { $0.levels }
+        var progress = progressStore.loadProgress(for: levels)
+        if let levelID,
+           let index = progress.firstIndex(where: { $0.level.id == levelID }),
+           progress[index].state == .locked {
+            progress[index].state = .unlocked
+        }
+        levelProgress = progress
+    }
 }
 
 struct GameRuntime {
@@ -340,6 +397,11 @@ struct LevelPackProgress: Identifiable {
 enum GameResult {
     case victory
     case defeat
+}
+
+struct ImportSheetState: Identifiable {
+    let id = UUID()
+    let initialPayload: String?
 }
 
 final class GameSession: ObservableObject {
