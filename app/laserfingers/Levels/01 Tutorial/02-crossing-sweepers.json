@@ -2,8 +2,7 @@
   "id": "tutorial-sweeper-02",
   "title": "Crossing Beams",
   "description": "Survive two opposite sweepers while charging the center node.",
-  "allowedTouches": 2,
-  "difficulty": 2,
+  "maxTouches": 2,
   "buttons": [
     {
       "id": "center-button",

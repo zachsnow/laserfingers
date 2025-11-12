@@ -135,8 +135,8 @@ struct Level: Identifiable, Codable, Hashable {
     let id: String
     let title: String
     let description: String
-    let allowedTouches: Int
-    let difficulty: Int
+    let maxTouches: Int?
+    let lives: Int?
     let devices: [Device]?
     let buttons: [Button]
     let lasers: [Laser]

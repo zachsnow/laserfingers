@@ -146,11 +146,6 @@ final class LaserGameScene: SKScene {
         
         guard let transform = currentLayoutTransform() else { return }
         
-        guard !level.lasers.isEmpty else {
-            spawnLegacyLasers()
-            return
-        }
-        
         for spec in level.lasers {
             guard var runtime = makeLaserRuntime(from: spec, transform: transform) else { continue }
             runtime.node.startMotion()
@@ -162,7 +157,7 @@ final class LaserGameScene: SKScene {
     }
     
     private func makeLaserRuntime(from spec: Level.Laser, transform: NormalizedLayoutTransform) -> LaserRuntime? {
-        let color = SKColor.fromHex(spec.color, alpha: 0.75)
+        let color = SKColor.fromHex(spec.color, alpha: 0.95)
         let thickness = max(spec.thickness, 0.005)
         let node: LaserNode
         switch spec.kind {
@@ -175,45 +170,6 @@ final class LaserGameScene: SKScene {
         }
         node.updateLayout(using: transform)
         return LaserRuntime(spec: spec, node: node)
-    }
-    
-    private func spawnLegacyLasers() {
-        guard let transform = currentLayoutTransform() else { return }
-        let count = max(1, min(4, level.difficulty))
-        let colors = ["#FF5A82", "#FFAA2C", "#5AE0FF", "#AC7BFF"]
-        for index in 0..<count {
-            let axis = (index + level.difficulty) % 3
-            let fraction = CGFloat(index + 1) / CGFloat(count + 1)
-            let sweepSeconds = 2.4 + Double(index) * 0.45
-            let start: Level.NormalizedPoint
-            let end: Level.NormalizedPoint
-            switch axis {
-            case 0: // horizontal
-                let y = -0.8 + fraction * 1.6
-                start = Level.NormalizedPoint(x: -0.95, y: y)
-                end = Level.NormalizedPoint(x: 0.95, y: y)
-            case 1: // vertical
-                let x = -0.9 + fraction * 1.8
-                start = Level.NormalizedPoint(x: x, y: -1.3)
-                end = Level.NormalizedPoint(x: x, y: 1.3)
-            default: // diagonal
-                start = Level.NormalizedPoint(x: -0.95, y: -1.2 + fraction * 0.4)
-                end = Level.NormalizedPoint(x: 0.95, y: 1.2 - fraction * 0.4)
-            }
-            let spec = Level.Laser(
-                id: "legacy-\(index)",
-                color: colors[index % colors.count],
-                thickness: 0.015,
-                cadence: nil,
-                kind: .sweeper(Level.Laser.Sweeper(start: start, end: end, sweepSeconds: sweepSeconds))
-            )
-            guard var runtime = makeLaserRuntime(from: spec, transform: transform) else { continue }
-            runtime.node.startMotion()
-            runtime.applyFiringState(immediate: true)
-            addChild(runtime.node)
-            laserIndexById[spec.id] = laserStates.count
-            laserStates.append(runtime)
-        }
     }
     
     private func layoutScene() {
@@ -239,7 +195,7 @@ final class LaserGameScene: SKScene {
             let location = touch.location(in: self)
             let node = makeFingerSprite(at: location)
             addChild(node)
-            var data = FingerSprite(node: node, lastZapTime: 0)
+            let data = FingerSprite(node: node, lastZapTime: 0)
             data.node.alpha = 0.0
             data.node.run(SKAction.fadeAlpha(to: 1.0, duration: 0.1))
             fingerSprites[touch] = data
@@ -250,7 +206,7 @@ final class LaserGameScene: SKScene {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard session.status == .running else { return }
         for touch in touches {
-            guard var sprite = fingerSprites[touch] else { continue }
+            guard let sprite = fingerSprites[touch] else { continue }
             let location = touch.location(in: self)
             sprite.node.position = location
             fingerSprites[touch] = sprite
@@ -462,6 +418,147 @@ extension LaserObstacle {
     func updateLayout(using transform: NormalizedLayoutTransform) {}
 }
 
+// MARK: - Shared Background
+
+private final class BackgroundLayer: SKNode {
+    private static func makeBackgroundTexture() -> SKTexture {
+        #if os(iOS)
+        if let image = UIImage(named: "bg") ?? UIImage(named: "Background") {
+            return SKTexture(image: image)
+        }
+        #endif
+        fatalError("Missing Background asset. Ensure Assets.xcassets contains 'bg' (or 'Background').")
+    }
+    
+    private let baseTexture = BackgroundLayer.makeBackgroundTexture()
+    private let baseSprite: SKSpriteNode
+    private let glowSprite: SKSpriteNode
+    private let sweepNode: SKShapeNode
+    private let flareOverlay: SKSpriteNode
+    private let vignetteOverlay: SKSpriteNode
+    private let centerLight: SKLightNode
+    private let rimLight: SKLightNode
+    
+    override init() {
+        baseSprite = SKSpriteNode(texture: baseTexture)
+        glowSprite = SKSpriteNode(texture: baseTexture)
+        sweepNode = SKShapeNode()
+        flareOverlay = SKSpriteNode(color: SKColor(red: 1, green: 0.35, blue: 1, alpha: 0.35), size: .zero)
+        vignetteOverlay = SKSpriteNode(color: SKColor(white: 0, alpha: 0.55), size: .zero)
+        centerLight = SKLightNode()
+        rimLight = SKLightNode()
+        super.init()
+        setupNodes()
+        startAmbientAnimations()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    func updateLayout(to size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        let padded = CGSize(width: size.width * 1.3, height: size.height * 1.3)
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        baseSprite.size = padded
+        baseSprite.position = center
+        glowSprite.size = CGSize(width: padded.width * 1.05, height: padded.height * 1.05)
+        glowSprite.position = center
+        flareOverlay.size = CGSize(width: padded.width * 1.15, height: padded.height * 1.15)
+        flareOverlay.position = center
+        vignetteOverlay.size = CGSize(width: padded.width * 1.25, height: padded.height * 1.25)
+        vignetteOverlay.position = center
+        sweepNode.position = center
+        let sweepWidth = max(padded.width * 0.22, 80)
+        let sweepHeight = padded.height * 1.2
+        let rect = CGRect(x: -sweepWidth / 2, y: -sweepHeight / 2, width: sweepWidth, height: sweepHeight)
+        sweepNode.path = CGPath(roundedRect: rect, cornerWidth: sweepWidth * 0.4, cornerHeight: sweepWidth * 0.4, transform: nil)
+        centerLight.position = center
+        rimLight.position = center
+        restartSweepAnimation(span: padded.width * 0.6)
+    }
+    
+    private func setupNodes() {
+        baseSprite.lightingBitMask = 0
+        baseSprite.shadowedBitMask = 0
+        baseSprite.shadowCastBitMask = 0
+        baseSprite.zPosition = -30
+        addChild(baseSprite)
+        
+        glowSprite.color = SKColor(red: 0.9, green: 0.25, blue: 1, alpha: 1)
+        glowSprite.colorBlendFactor = 0.6
+        glowSprite.alpha = 0.2
+        glowSprite.blendMode = .add
+        glowSprite.lightingBitMask = 0b11
+        glowSprite.zPosition = baseSprite.zPosition + 1
+        addChild(glowSprite)
+        
+        sweepNode.fillColor = SKColor(red: 0.9, green: 0.65, blue: 1, alpha: 0.45)
+        sweepNode.strokeColor = SKColor(red: 1, green: 1, blue: 1, alpha: 0.35)
+        sweepNode.glowWidth = 24
+        sweepNode.lineWidth = 0
+        sweepNode.blendMode = .add
+        sweepNode.zPosition = glowSprite.zPosition + 1
+        addChild(sweepNode)
+        
+        flareOverlay.blendMode = .add
+        flareOverlay.alpha = 0.25
+        flareOverlay.zPosition = sweepNode.zPosition + 1
+        flareOverlay.lightingBitMask = 0
+        addChild(flareOverlay)
+        
+        vignetteOverlay.blendMode = .multiply
+        vignetteOverlay.alpha = 0.3
+        vignetteOverlay.zPosition = flareOverlay.zPosition + 1
+        vignetteOverlay.lightingBitMask = 0
+        addChild(vignetteOverlay)
+        
+        centerLight.categoryBitMask = 0b10
+        centerLight.falloff = 0.25
+        centerLight.ambientColor = SKColor(red: 0.08, green: 0.0, blue: 0.15, alpha: 0.45)
+        centerLight.lightColor = SKColor(red: 1, green: 0.65, blue: 1, alpha: 0.8)
+        centerLight.zPosition = vignetteOverlay.zPosition + 1
+        addChild(centerLight)
+        
+        rimLight.categoryBitMask = 0b10
+        rimLight.falloff = 2.2
+        rimLight.lightColor = SKColor(red: 0.35, green: 0.65, blue: 1, alpha: 0.5)
+        rimLight.ambientColor = .clear
+        rimLight.zPosition = centerLight.zPosition
+        addChild(rimLight)
+    }
+    
+    private func startAmbientAnimations() {
+        glowSprite.removeAction(forKey: "glowPulse")
+        let glowUp = SKAction.fadeAlpha(to: 0.4, duration: 2.6)
+        let glowDown = SKAction.fadeAlpha(to: 0.15, duration: 2.0)
+        glowSprite.run(SKAction.repeatForever(SKAction.sequence([glowUp, glowDown])), withKey: "glowPulse")
+        
+        flareOverlay.removeAction(forKey: "flarePulse")
+        let flareUp = SKAction.fadeAlpha(to: 0.3, duration: 1.8)
+        let flareDown = SKAction.fadeAlpha(to: 0.1, duration: 1.6)
+        flareOverlay.run(SKAction.repeatForever(SKAction.sequence([flareUp, flareDown])), withKey: "flarePulse")
+        
+        centerLight.removeAction(forKey: "centerPulse")
+        let lightUp = SKAction.fadeAlpha(to: 1.0, duration: 2.2)
+        let lightDown = SKAction.fadeAlpha(to: 0.5, duration: 2.0)
+        centerLight.alpha = 0.8
+        centerLight.run(SKAction.repeatForever(SKAction.sequence([lightUp, lightDown])), withKey: "centerPulse")
+    }
+    
+    private func restartSweepAnimation(span: CGFloat) {
+        guard span > 0 else { return }
+        sweepNode.removeAction(forKey: "lightSweep")
+        let moveRight = SKAction.moveBy(x: span, y: span * 0.05, duration: 3.8)
+        moveRight.timingMode = .easeInEaseOut
+        let moveLeft = moveRight.reversed()
+        moveLeft.timingMode = .easeInEaseOut
+        let wait = SKAction.wait(forDuration: 0.6)
+        let loop = SKAction.sequence([moveRight, wait, moveLeft, wait])
+        sweepNode.run(SKAction.repeatForever(loop), withKey: "lightSweep")
+    }
+}
+
 // MARK: - Menu Background
 
 final class MenuBackgroundScene: SKScene {
@@ -629,13 +726,23 @@ private final class ButtonNode: SKNode {
     private let button: Level.Button
     private let colorSpec: Level.Button.ColorSpec
     private var areas: [AreaVisual] = []
+    private let lightNode: SKLightNode
     
     init(button: Level.Button, transform: NormalizedLayoutTransform) {
         self.button = button
         self.colorSpec = button.color
+        lightNode = SKLightNode()
         super.init()
+        lightNode.categoryBitMask = 1
+        lightNode.falloff = 3
+        lightNode.ambientColor = .clear
+        lightNode.lightColor = SKColor.fromHex(button.color.fill, alpha: 0.35)
+        lightNode.alpha = 0.8
+        lightNode.isEnabled = true
+        addChild(lightNode)
         buildAreas(from: button.hitAreas)
         updateLayout(transform: transform)
+        startGlowPulse()
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -644,6 +751,7 @@ private final class ButtonNode: SKNode {
     
     func updateLayout(transform: NormalizedLayoutTransform) {
         position = transform.point(from: button.position)
+        lightNode.position = .zero
         for index in areas.indices {
             var visual = areas[index]
             let spec = visual.spec
@@ -677,11 +785,21 @@ private final class ButtonNode: SKNode {
     }
     
     func setTouching(_ isTouching: Bool) {
-        let strokeAlpha: CGFloat = isTouching ? 0.95 : 0.65
-        let color = SKColor.fromHex(colorSpec.rim ?? colorSpec.fill, alpha: strokeAlpha)
         for index in areas.indices {
-            areas[index].outline.strokeColor = color
+            let strokeAlpha: CGFloat = isTouching ? 0.95 : 0.65
+            areas[index].outline.strokeColor = SKColor.fromHex(colorSpec.rim ?? colorSpec.fill, alpha: strokeAlpha)
+            areas[index].fill.removeAction(forKey: "touchFade")
+            let targetAlpha: CGFloat = isTouching ? 0.95 : 0.25
+            let fade = SKAction.fadeAlpha(to: targetAlpha, duration: 0.08)
+            areas[index].fill.run(fade, withKey: "touchFade")
+            areas[index].glow.removeAction(forKey: "touchGlow")
+            let glowAlpha: CGFloat = isTouching ? 0.45 : 0.2
+            let glowFade = SKAction.fadeAlpha(to: glowAlpha, duration: 0.08)
+            areas[index].glow.run(glowFade, withKey: "touchGlow")
         }
+        let targetAlpha: CGFloat = isTouching ? 1.1 : 0.7
+        lightNode.removeAction(forKey: "touchLight")
+        lightNode.run(SKAction.fadeAlpha(to: targetAlpha, duration: 0.08), withKey: "touchLight")
     }
     
     func touchCounts(for points: [CGPoint], in scene: SKScene) -> [Int] {
@@ -780,6 +898,27 @@ private final class ButtonNode: SKNode {
     private static func makeHitPath(from path: CGPath) -> CGPath {
         var transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
         return path.copy(using: &transform) ?? path
+    }
+    
+    private func startGlowPulse() {
+        for index in areas.indices {
+            let pulseUp = SKAction.group([
+                SKAction.fadeAlpha(to: 0.4, duration: 0.8),
+                SKAction.scale(to: 1.15, duration: 0.8)
+            ])
+            let pulseDown = SKAction.group([
+                SKAction.fadeAlpha(to: 0.2, duration: 0.8),
+                SKAction.scale(to: 1.0, duration: 0.8)
+            ])
+            let sequence = SKAction.sequence([pulseUp, pulseDown])
+            areas[index].glow.run(SKAction.repeatForever(sequence), withKey: "glowPulse")
+        }
+        lightNode.removeAction(forKey: "lightPulse")
+        let lighten = SKAction.sequence([
+            SKAction.fadeAlpha(to: 1.0, duration: 0.8),
+            SKAction.fadeAlpha(to: 0.6, duration: 0.8)
+        ])
+        lightNode.run(SKAction.repeatForever(lighten), withKey: "lightPulse")
     }
 }
 
@@ -936,6 +1075,10 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     private let thicknessScale: CGFloat
     private let color: SKColor
     private let beam: SKShapeNode
+    private let glowShell: SKShapeNode
+    private let bloomNode: SKEffectNode
+    private let bloomShape: SKShapeNode
+    private let lightNode: SKLightNode
     private var startPoint: CGPoint = .zero
     private var endPoint: CGPoint = .zero
     private var isFiring = true
@@ -946,10 +1089,39 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
         self.thicknessScale = thicknessScale
         self.color = color
         beam = SKShapeNode()
+        glowShell = SKShapeNode()
+        bloomNode = SKEffectNode()
+        bloomShape = SKShapeNode()
+        lightNode = SKLightNode()
         super.init()
         beam.fillColor = color
         beam.strokeColor = color.withAlphaComponent(0.85)
+        beam.glowWidth = 0
+        beam.blendMode = .add
+        glowShell.fillColor = color.withAlphaComponent(0.45)
+        glowShell.strokeColor = color.withAlphaComponent(0.2)
+        glowShell.blendMode = .add
+        glowShell.zPosition = -1
+        addChild(glowShell)
+        bloomNode.shouldRasterize = true
+        bloomNode.shouldEnableEffects = true
+        bloomNode.blendMode = .add
+        bloomNode.zPosition = glowShell.zPosition + 0.5
+        bloomShape.fillColor = color.withAlphaComponent(0.65)
+        bloomShape.strokeColor = color.withAlphaComponent(0.25)
+        bloomShape.lineWidth = 0
+        bloomShape.glowWidth = 0
+        bloomNode.addChild(bloomShape)
+        addChild(bloomNode)
+        lightNode.categoryBitMask = 0
+        lightNode.falloff = 0.7
+        lightNode.ambientColor = color.withAlphaComponent(0.2)
+        lightNode.lightColor = color.withAlphaComponent(0.95)
+        lightNode.alpha = 1.0
+        lightNode.isEnabled = false
+        addChild(lightNode)
         addChild(beam)
+        startGlowShimmer()
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -959,6 +1131,7 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     func startMotion() {
         motionActive = true
         restartMotion()
+        startAfterimageLoop()
     }
     
     func updateLayout(using transform: NormalizedLayoutTransform) {
@@ -966,13 +1139,25 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
         let length = hypot(transform.frame.width, transform.frame.height) * 1.1
         let rect = CGRect(x: -length / 2, y: -thickness / 2, width: length, height: thickness)
         beam.path = CGPath(roundedRect: rect, cornerWidth: thickness / 2, cornerHeight: thickness / 2, transform: nil)
-        beam.glowWidth = thickness * 0.8
+        beam.glowWidth = thickness * 2.2
+        let glowRect = rect.insetBy(dx: -thickness, dy: -thickness)
+        glowShell.path = CGPath(roundedRect: glowRect, cornerWidth: thickness * 1.3, cornerHeight: thickness * 1.3, transform: nil)
+        glowShell.lineWidth = 0
+        bloomShape.path = beam.path
+        bloomShape.position = beam.position
+        let blurRadius = max(thickness * 1.5, 6)
+        updateBloomFilter(radius: blurRadius)
         startPoint = transform.point(from: spec.start)
         endPoint = transform.point(from: spec.end)
         position = startPoint
         let dx = endPoint.x - startPoint.x
         let dy = endPoint.y - startPoint.y
         beam.zRotation = atan2(dy, dx) + (.pi / 2)
+        glowShell.position = beam.position
+        glowShell.zRotation = beam.zRotation
+        bloomNode.position = beam.position
+        bloomNode.zRotation = beam.zRotation
+        lightNode.position = .zero
         if motionActive {
             restartMotion()
         }
@@ -999,6 +1184,73 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     func setFiring(active: Bool) {
         isFiring = active
         beam.alpha = active ? 1.0 : 0.05
+        glowShell.alpha = active ? glowShell.alpha : glowShell.alpha * 0.2
+        bloomNode.alpha = active ? 1.0 : 0.1
+        lightNode.isEnabled = active
+        if !active {
+            removeAction(forKey: "afterimage")
+        } else if action(forKey: "afterimage") == nil {
+            startAfterimageLoop()
+        }
+    }
+    
+    private func startAfterimageLoop() {
+        removeAction(forKey: "afterimage")
+        let wait = SKAction.wait(forDuration: 0.08)
+        let spawn = SKAction.run { [weak self] in
+            self?.spawnAfterimage()
+        }
+        run(SKAction.repeatForever(SKAction.sequence([spawn, wait])), withKey: "afterimage")
+    }
+    
+    private func updateBloomFilter(radius: CGFloat) {
+        let filter = CIFilter(name: "CIGaussianBlur")
+        filter?.setValue(radius, forKey: kCIInputRadiusKey)
+        bloomNode.filter = filter
+    }
+    
+    private func spawnAfterimage() {
+        guard let path = beam.path else { return }
+        let ghost = SKShapeNode(path: path)
+        ghost.position = beam.position
+        ghost.zRotation = beam.zRotation
+        ghost.fillColor = color.withAlphaComponent(0.35)
+        ghost.strokeColor = color.withAlphaComponent(0.45)
+        ghost.glowWidth = beam.glowWidth * 0.7
+        ghost.lineWidth = beam.lineWidth
+        ghost.zPosition = beam.zPosition - 1
+        addChild(ghost)
+        ghost.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.fadeOut(withDuration: 0.5),
+                SKAction.scale(by: 1.03, duration: 0.5)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+    }
+    
+    private func startGlowShimmer() {
+        glowShell.removeAction(forKey: "glowShimmer")
+        let delay = Double.random(in: 0...0.4)
+        let duration = Double.random(in: 1.0...1.4)
+        let up = SKAction.group([
+            SKAction.fadeAlpha(to: 0.75, duration: duration),
+            SKAction.scaleX(to: 1.06, duration: duration),
+            SKAction.scaleY(to: 1.08, duration: duration)
+        ])
+        let down = SKAction.group([
+            SKAction.fadeAlpha(to: 0.35, duration: duration),
+            SKAction.scaleX(to: 1.0, duration: duration),
+            SKAction.scaleY(to: 1.0, duration: duration)
+        ])
+        let sequence = SKAction.sequence([up, down])
+        glowShell.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.repeatForever(sequence)]), withKey: "glowShimmer")
+        lightNode.removeAction(forKey: "lightShimmer")
+        let lightSequence = SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.85, duration: duration),
+            SKAction.fadeAlpha(to: 0.45, duration: duration)
+        ])
+        lightNode.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.repeatForever(lightSequence)]), withKey: "lightShimmer")
     }
 }
 
@@ -1007,6 +1259,10 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
     private let thicknessScale: CGFloat
     private let color: SKColor
     private let beam: SKShapeNode
+    private let glowShell: SKShapeNode
+    private let bloomNode: SKEffectNode
+    private let bloomShape: SKShapeNode
+    private let lightNode: SKLightNode
     private var isFiring = true
     private var motionActive = false
     
@@ -1015,10 +1271,38 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
         self.thicknessScale = thicknessScale
         self.color = color
         beam = SKShapeNode()
+        glowShell = SKShapeNode()
+        bloomNode = SKEffectNode()
+        bloomShape = SKShapeNode()
+        lightNode = SKLightNode()
         super.init()
         beam.fillColor = color
         beam.strokeColor = color.withAlphaComponent(0.85)
+        beam.blendMode = .add
+        glowShell.fillColor = color.withAlphaComponent(0.4)
+        glowShell.strokeColor = color.withAlphaComponent(0.18)
+        glowShell.blendMode = .add
+        glowShell.zPosition = -1
+        addChild(glowShell)
+        bloomNode.shouldRasterize = true
+        bloomNode.shouldEnableEffects = true
+        bloomNode.blendMode = .add
+        bloomNode.zPosition = glowShell.zPosition + 0.5
+        bloomShape.fillColor = color.withAlphaComponent(0.6)
+        bloomShape.strokeColor = color.withAlphaComponent(0.25)
+        bloomShape.lineWidth = 0
+        bloomShape.glowWidth = 0
+        bloomNode.addChild(bloomShape)
+        addChild(bloomNode)
+        lightNode.categoryBitMask = 0
+        lightNode.falloff = 0.6
+        lightNode.ambientColor = color.withAlphaComponent(0.2)
+        lightNode.lightColor = color.withAlphaComponent(0.95)
+        lightNode.alpha = 0
+        lightNode.isEnabled = false
+        addChild(lightNode)
         addChild(beam)
+        startGlowShimmer()
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -1029,15 +1313,26 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
         guard spec.speedDegreesPerSecond != 0 else { return }
         motionActive = true
         restartSpin()
+        startAfterimageLoop()
     }
     
     func updateLayout(using transform: NormalizedLayoutTransform) {
         let thickness = max(transform.length(from: thicknessScale), 1)
         let armLength = max(transform.frame.width, transform.frame.height) * 1.4
-        let rect = CGRect(x: -thickness / 2, y: 0, width: thickness, height: armLength)
+        let rect = CGRect(x: -thickness / 2, y: -armLength / 2, width: thickness, height: armLength)
         beam.path = CGPath(roundedRect: rect, cornerWidth: thickness / 2, cornerHeight: thickness / 2, transform: nil)
-        beam.position = CGPoint(x: 0, y: armLength / 2)
-        beam.glowWidth = thickness * 0.9
+        beam.position = .zero
+        beam.glowWidth = thickness * 2.1
+        let glowRect = rect.insetBy(dx: -thickness * 0.9, dy: -thickness * 0.9)
+        glowShell.path = CGPath(roundedRect: glowRect, cornerWidth: thickness * 1.25, cornerHeight: thickness * 1.25, transform: nil)
+        glowShell.lineWidth = 0
+        glowShell.position = .zero
+        bloomShape.path = beam.path
+        bloomShape.position = beam.position
+        let blurRadius = max(thickness * 1.4, 6)
+        updateBloomFilter(radius: blurRadius)
+        bloomNode.position = .zero
+        lightNode.position = .zero
         position = transform.point(from: spec.center)
         zRotation = CGFloat(spec.initialAngleDegrees * .pi / 180)
         if motionActive {
@@ -1064,6 +1359,67 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
     func setFiring(active: Bool) {
         isFiring = active
         beam.alpha = active ? 1.0 : 0.05
+        glowShell.alpha = active ? glowShell.alpha : glowShell.alpha * 0.2
+        bloomNode.alpha = active ? 1.0 : 0.1
+        lightNode.isEnabled = active
+        if !active {
+            removeAction(forKey: "afterimage")
+        } else if action(forKey: "afterimage") == nil {
+            startAfterimageLoop()
+        }
+    }
+
+    private func startGlowShimmer() {
+        glowShell.removeAction(forKey: "rotorGlow")
+        let duration = Double.random(in: 0.9...1.3)
+        let up = SKAction.group([
+            SKAction.fadeAlpha(to: 0.7, duration: duration),
+            SKAction.scaleX(to: 1.08, duration: duration),
+            SKAction.scaleY(to: 1.08, duration: duration)
+        ])
+        let down = SKAction.group([
+            SKAction.fadeAlpha(to: 0.35, duration: duration),
+            SKAction.scaleX(to: 1.0, duration: duration),
+            SKAction.scaleY(to: 1.0, duration: duration)
+        ])
+        glowShell.run(SKAction.repeatForever(SKAction.sequence([up, down])), withKey: "rotorGlow")
+        lightNode.removeAction(forKey: "rotorLight")
+        let lightSequence = SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.85, duration: duration),
+            SKAction.fadeAlpha(to: 0.5, duration: duration)
+        ])
+        lightNode.run(SKAction.repeatForever(lightSequence), withKey: "rotorLight")
+    }
+    
+    private func startAfterimageLoop() {
+        removeAction(forKey: "afterimage")
+        let wait = SKAction.wait(forDuration: 0.08)
+        let spawn = SKAction.run { [weak self] in
+            self?.spawnAfterimage()
+        }
+        run(SKAction.repeatForever(SKAction.sequence([spawn, wait])), withKey: "afterimage")
+    }
+    
+    private func spawnAfterimage() {
+        guard let path = beam.path else { return }
+        let ghost = SKShapeNode(path: path)
+        ghost.position = beam.position
+        ghost.zRotation = beam.zRotation
+        ghost.fillColor = color.withAlphaComponent(0.3)
+        ghost.strokeColor = color.withAlphaComponent(0.4)
+        ghost.glowWidth = beam.glowWidth * 0.7
+        ghost.lineWidth = beam.lineWidth
+        addChild(ghost)
+        ghost.run(SKAction.sequence([
+            SKAction.fadeOut(withDuration: 0.5),
+            SKAction.removeFromParent()
+        ]))
+    }
+    
+    private func updateBloomFilter(radius: CGFloat) {
+        let filter = CIFilter(name: "CIGaussianBlur")
+        filter?.setValue(radius, forKey: kCIInputRadiusKey)
+        bloomNode.filter = filter
     }
 }
 
@@ -1072,6 +1428,10 @@ private final class SegmentLaserNode: SKNode, LaserObstacle {
     private let thicknessScale: CGFloat
     private let color: SKColor
     private let beam: SKShapeNode
+    private let glowShell: SKShapeNode
+    private let bloomNode: SKEffectNode
+    private let bloomShape: SKShapeNode
+    private let lightNode: SKLightNode
     private var isFiring = true
     
     init(spec: Level.Laser.Segment, thicknessScale: CGFloat, color: SKColor) {
@@ -1079,9 +1439,36 @@ private final class SegmentLaserNode: SKNode, LaserObstacle {
         self.thicknessScale = thicknessScale
         self.color = color
         beam = SKShapeNode()
+        glowShell = SKShapeNode()
+        bloomNode = SKEffectNode()
+        bloomShape = SKShapeNode()
+        lightNode = SKLightNode()
         super.init()
         beam.fillColor = color
         beam.strokeColor = color.withAlphaComponent(0.85)
+        beam.blendMode = .add
+        glowShell.fillColor = color.withAlphaComponent(0.4)
+        glowShell.strokeColor = color.withAlphaComponent(0.18)
+        glowShell.blendMode = .add
+        glowShell.zPosition = -1
+        addChild(glowShell)
+        bloomNode.shouldRasterize = true
+        bloomNode.shouldEnableEffects = true
+        bloomNode.blendMode = .add
+        bloomNode.zPosition = glowShell.zPosition + 0.5
+        bloomShape.fillColor = color.withAlphaComponent(0.6)
+        bloomShape.strokeColor = color.withAlphaComponent(0.25)
+        bloomShape.lineWidth = 0
+        bloomShape.glowWidth = 0
+        bloomNode.addChild(bloomShape)
+        addChild(bloomNode)
+        lightNode.categoryBitMask = 0
+        lightNode.falloff = 0.8
+        lightNode.ambientColor = color.withAlphaComponent(0.15)
+        lightNode.lightColor = color.withAlphaComponent(0.95)
+        lightNode.alpha = 0
+        lightNode.isEnabled = false
+        addChild(lightNode)
         addChild(beam)
     }
     
@@ -1089,7 +1476,9 @@ private final class SegmentLaserNode: SKNode, LaserObstacle {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func startMotion() {}
+    func startMotion() {
+        startGlowShimmer()
+    }
     
     func updateLayout(using transform: NormalizedLayoutTransform) {
         let thickness = max(transform.length(from: thicknessScale), 1)
@@ -1098,14 +1487,25 @@ private final class SegmentLaserNode: SKNode, LaserObstacle {
         let dx = endPoint.x - startPoint.x
         let dy = endPoint.y - startPoint.y
         let length = hypot(dx, dy)
+        let rect = CGRect(x: -length / 2, y: -thickness / 2, width: length, height: thickness)
         beam.path = CGPath(
-            roundedRect: CGRect(x: -length / 2, y: -thickness / 2, width: length, height: thickness),
+            roundedRect: rect,
             cornerWidth: thickness / 2,
             cornerHeight: thickness / 2,
             transform: nil
         )
         beam.position = .zero
-        beam.glowWidth = thickness
+        beam.glowWidth = thickness * 2.0
+        let glowRect = rect.insetBy(dx: -thickness * 0.9, dy: -thickness * 0.9)
+        glowShell.path = CGPath(roundedRect: glowRect, cornerWidth: thickness * 1.25, cornerHeight: thickness * 1.25, transform: nil)
+        glowShell.lineWidth = 0
+        glowShell.position = .zero
+        bloomShape.path = beam.path
+        bloomShape.position = beam.position
+        let blurRadius = max(thickness * 1.3, 6)
+        updateBloomFilter(radius: blurRadius)
+        bloomNode.position = .zero
+        lightNode.position = .zero
         position = CGPoint(x: (startPoint.x + endPoint.x) / 2, y: (startPoint.y + endPoint.y) / 2)
         zRotation = atan2(dy, dx)
     }
@@ -1119,6 +1519,40 @@ private final class SegmentLaserNode: SKNode, LaserObstacle {
     func setFiring(active: Bool) {
         isFiring = active
         beam.alpha = active ? 1.0 : 0.05
+        glowShell.alpha = active ? glowShell.alpha : glowShell.alpha * 0.2
+        bloomNode.alpha = active ? 1.0 : 0.1
+        lightNode.isEnabled = active
+        if active, glowShell.action(forKey: "segmentGlow") == nil {
+            startGlowShimmer()
+        }
+    }
+    
+    private func startGlowShimmer() {
+        glowShell.removeAction(forKey: "segmentGlow")
+        let duration = Double.random(in: 0.9...1.2)
+        let up = SKAction.group([
+            SKAction.fadeAlpha(to: 0.7, duration: duration),
+            SKAction.scaleX(to: 1.05, duration: duration),
+            SKAction.scaleY(to: 1.04, duration: duration)
+        ])
+        let down = SKAction.group([
+            SKAction.fadeAlpha(to: 0.35, duration: duration),
+            SKAction.scaleX(to: 1.0, duration: duration),
+            SKAction.scaleY(to: 1.0, duration: duration)
+        ])
+        glowShell.run(SKAction.repeatForever(SKAction.sequence([up, down])), withKey: "segmentGlow")
+        lightNode.removeAction(forKey: "segmentLight")
+        let lightSequence = SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.85, duration: duration),
+            SKAction.fadeAlpha(to: 0.45, duration: duration)
+        ])
+        lightNode.run(SKAction.repeatForever(lightSequence), withKey: "segmentLight")
+    }
+    
+    private func updateBloomFilter(radius: CGFloat) {
+        let filter = CIFilter(name: "CIGaussianBlur")
+        filter?.setValue(radius, forKey: kCIInputRadiusKey)
+        bloomNode.filter = filter
     }
 }
 

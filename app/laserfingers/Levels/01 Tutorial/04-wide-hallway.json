@@ -2,8 +2,7 @@
   "id": "tutorial-disjunction-01",
   "title": "Wide Hallway",
   "description": "Either pad keeps the gate charging, but beware the heavy laser.",
-  "allowedTouches": 2,
-  "difficulty": 3,
+  "maxTouches": 2,
   "buttons": [
     {
       "id": "hallway-button",

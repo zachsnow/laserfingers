@@ -352,6 +352,8 @@ final class GameSession: ObservableObject {
     @Published var activeTouches: Int = 0
     @Published var fillPercentage: CGFloat = 0
     @Published var zapCount: Int = 0
+    let maxLives: Int
+    @Published var remainingLives: Int
     let soundEnabled: Bool
     let hapticsEnabled: Bool
     let hasInfiniteSlots: Bool
@@ -361,9 +363,13 @@ final class GameSession: ObservableObject {
     init(level: Level, settings: GameSettings) {
         self.level = level
         let hardwareLimit = TouchCapabilities.maxSimultaneousTouches
-        let effectiveAllowance = max(1, min(level.allowedTouches, hardwareLimit))
+        let requestedTouches = level.maxTouches ?? hardwareLimit
+        let effectiveAllowance = max(1, min(requestedTouches, hardwareLimit))
         self.touchAllowance = effectiveAllowance
         self.initialTouchAllowance = effectiveAllowance
+        let requestedLives = level.lives ?? 1
+        self.maxLives = max(1, requestedLives)
+        self.remainingLives = self.maxLives
         self.soundEnabled = settings.soundEnabled
         self.hapticsEnabled = settings.hapticsEnabled
         self.hasInfiniteSlots = settings.infiniteSlotsEnabled
@@ -372,9 +378,7 @@ final class GameSession: ObservableObject {
     func registerZap() -> Bool {
         guard status == .running else { return false }
         zapCount += 1
-        if !hasInfiniteSlots, touchAllowance > 0 {
-            touchAllowance -= 1
-        }
-        return !hasInfiniteSlots && touchAllowance == 0
+        remainingLives = max(0, remainingLives - 1)
+        return remainingLives == 0
     }
 }

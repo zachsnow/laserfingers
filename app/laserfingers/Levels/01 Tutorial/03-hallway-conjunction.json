@@ -2,8 +2,7 @@
   "id": "tutorial-conjunction-01",
   "title": "Hallway Hold",
   "description": "Touch both pads to charge while a sweeper tracks the hallway.",
-  "allowedTouches": 2,
-  "difficulty": 3,
+  "maxTouches": 2,
   "buttons": [
     {
       "id": "hallway-button",

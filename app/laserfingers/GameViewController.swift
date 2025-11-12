@@ -64,7 +64,7 @@ struct MainMenuView: View {
         ZStack {
             SpriteView(scene: backgroundScene, options: [.allowsTransparency])
                 .ignoresSafeArea()
-            Color.black.opacity(0.55).ignoresSafeArea()
+            Color.black.opacity(0.2).ignoresSafeArea()
             VStack(spacing: 32) {
                 Spacer()
                 Text("LASER\nFINGERS")
@@ -108,7 +108,7 @@ struct SettingsView: View {
                 Toggle("Advanced Mode", isOn: $coordinator.settings.advancedModeEnabled)
                     .toggleStyle(SwitchToggleStyle(tint: .pink))
                 Spacer()
-                LaserButton(title: "Back") { coordinator.goToMainMenu() }
+                LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
         }
     }
@@ -129,7 +129,7 @@ struct AboutView: View {
                 Link("See also Gernal →", destination: URL(string: "https://x0xrx.com")!)
                     .foregroundColor(.pink)
                 Spacer()
-                LaserButton(title: "Back") { coordinator.goToMainMenu() }
+                LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
         }
     }
@@ -156,7 +156,7 @@ struct AdvancedMenuView: View {
                     }
                 }
                 Spacer()
-                LaserButton(title: "Back") { coordinator.goToMainMenu() }
+                LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
         }
     }
@@ -172,20 +172,10 @@ struct LevelSelectView: View {
         ZStack {
             SpriteView(scene: backgroundScene, options: [.allowsTransparency])
                 .ignoresSafeArea()
-            Color.black.opacity(0.65).ignoresSafeArea()
+            Color.black.opacity(0.25).ignoresSafeArea()
             VStack(alignment: .leading, spacing: 24) {
-                HStack {
-                    Button(action: coordinator.goToMainMenu) {
-                        Label("Back", systemImage: "chevron.left")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.white)
-                    Spacer()
-                    Text("Level Select")
-                        .font(.title2.weight(.bold))
-                    Spacer()
-                    Spacer().frame(width: 44)
-                }
+                Text("Level Select")
+                    .font(.title.bold())
                 ScrollView {
                     VStack(spacing: 20) {
                         ForEach(coordinator.levelPackEntries()) { packEntry in
@@ -194,6 +184,9 @@ struct LevelSelectView: View {
                             }
                         }
                     }
+                }
+                LaserButton(title: "Back", style: .secondary) {
+                    coordinator.goToMainMenu()
                 }
             }
             .padding()
@@ -391,6 +384,7 @@ struct GameplayView: View {
         case .paused:
             PauseOverlay(
                 resumeAction: coordinator.resumeGame,
+                restartAction: { coordinator.retryActiveLevel() },
                 exitAction: coordinator.exitGameplay
             )
         default:
@@ -399,18 +393,16 @@ struct GameplayView: View {
     }
     
     private var lostOverlay: some View {
-        ResultOverlay(
+        DefeatOverlay(
             title: "Zapped!",
-            message: "You ran out of touches.",
-            primaryTitle: "Try Again",
-            primaryAction: { coordinator.retryActiveLevel() },
-            secondaryTitle: "Exit",
-            secondaryAction: { coordinator.exitGameplay() }
+            message: "You ran out of lives.",
+            retryAction: { coordinator.retryActiveLevel() },
+            exitAction: { coordinator.exitGameplay() }
         )
     }
     
     private var winOverlay: some View {
-        ResultOverlay(
+        VictoryOverlay(
             title: "Gate Open",
             message: "Level complete.",
             primaryTitle: hasNextLevel ? "Next Level" : "Level Select",
@@ -421,8 +413,8 @@ struct GameplayView: View {
                     coordinator.exitGameplay()
                 }
             },
-            secondaryTitle: "Level Select",
-            secondaryAction: { coordinator.exitGameplay() }
+            restartAction: { coordinator.retryActiveLevel() },
+            exitAction: { coordinator.exitGameplay() }
         )
     }
     
@@ -445,28 +437,51 @@ struct GameHUDView: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 12)
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("Active: \(session.activeTouches)")
-                Text("Slots left: \(slotsText)")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.75))
+            VStack(alignment: .trailing, spacing: 6) {
+                livesView
+                if let concurrency = concurrencyText {
+                    Text(concurrency)
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.75))
+                }
             }
         }
         .padding(.horizontal)
     }
     
-    private var slotsText: String {
-        session.hasInfiniteSlots ? "∞" : "\(session.touchAllowance)"
+    private var livesView: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<session.maxLives, id: \.self) { index in
+                Circle()
+                    .fill(index < session.remainingLives ? Color.white : Color.clear)
+                    .frame(width: 12, height: 12)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.85), lineWidth: 1)
+                    )
+            }
+        }
+    }
+    
+    private var concurrencyText: String? {
+        if session.hasInfiniteSlots {
+            return "Concurrency: ∞"
+        }
+        let deviceMax = TouchCapabilities.maxSimultaneousTouches
+        guard session.initialTouchAllowance < deviceMax else {
+            return nil
+        }
+        return "Concurrency: \(session.initialTouchAllowance)"
     }
 }
 
-struct ResultOverlay: View {
+struct VictoryOverlay: View {
     let title: String
     let message: String
     let primaryTitle: String
     let primaryAction: () -> Void
-    let secondaryTitle: String
-    let secondaryAction: () -> Void
+    let restartAction: () -> Void
+    let exitAction: () -> Void
     
     var body: some View {
         ZStack {
@@ -478,8 +493,36 @@ struct ResultOverlay: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(.white.opacity(0.75))
                 LaserButton(title: primaryTitle, action: primaryAction)
-                Button(secondaryTitle, action: secondaryAction)
-                    .padding(.top, 8)
+                HStack(spacing: 12) {
+                    LaserButton(title: "Restart", style: .secondary, action: restartAction)
+                    LaserButton(title: "Exit", style: .secondary, action: exitAction)
+                }
+            }
+            .padding()
+            .frame(maxWidth: 360)
+            .background(Color.black.opacity(0.85))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+    }
+}
+
+struct DefeatOverlay: View {
+    let title: String
+    let message: String
+    let retryAction: () -> Void
+    let exitAction: () -> Void
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.65).ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text(title)
+                    .font(.largeTitle.bold())
+                Text(message)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.white.opacity(0.75))
+                LaserButton(title: "Try Again", action: retryAction)
+                LaserButton(title: "Exit", style: .secondary, action: exitAction)
             }
             .padding()
             .frame(maxWidth: 320)
@@ -491,32 +534,22 @@ struct ResultOverlay: View {
 
 struct PauseOverlay: View {
     let resumeAction: () -> Void
+    let restartAction: () -> Void
     let exitAction: () -> Void
     
     var body: some View {
         ZStack {
             Color.black.opacity(0.65).ignoresSafeArea()
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
                 Text("Paused")
                     .font(.largeTitle.bold())
                 Text("Take a breath, lasers will wait.")
                     .foregroundColor(.white.opacity(0.8))
-                HStack(spacing: 16) {
-                    Button(action: resumeAction) {
-                        Label("Resume", systemImage: "play.fill")
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    
-                    Button(action: exitAction) {
-                        Label("Exit", systemImage: "rectangle.portrait.and.arrow.right")
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
+                LaserButton(title: "Resume", action: resumeAction)
+                HStack(spacing: 12) {
+                    LaserButton(title: "Restart", style: .secondary, action: restartAction)
+                    LaserButton(title: "Exit", style: .secondary, action: exitAction)
                 }
-                .frame(maxWidth: 380)
             }
             .padding(32)
             .background(Color.black.opacity(0.8))
@@ -559,11 +592,11 @@ struct MenuScaffold<Content: View>: View {
         ZStack {
             SpriteView(scene: scene, options: [.allowsTransparency])
                 .ignoresSafeArea()
-            Color.black.opacity(0.6).ignoresSafeArea()
+            Color.black.opacity(0.4).ignoresSafeArea()
             content
                 .padding()
                 .frame(maxWidth: 480)
-                .background(Color.black.opacity(0.55))
+                .background(Color.black.opacity(0.45))
                 .cornerRadius(24)
                 .padding()
         }
@@ -571,8 +604,20 @@ struct MenuScaffold<Content: View>: View {
 }
 
 struct LaserButton: View {
+    enum Style {
+        case primary
+        case secondary
+    }
+    
     let title: String
+    let style: Style
     let action: () -> Void
+    
+    init(title: String, style: Style = .primary, action: @escaping () -> Void) {
+        self.title = title
+        self.style = style
+        self.action = action
+    }
     
     var body: some View {
         Button(action: action) {
@@ -580,12 +625,34 @@ struct LaserButton: View {
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(
-                    LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .foregroundColor(textColor)
+                .background(backgroundView)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(borderColor, lineWidth: style == .secondary ? 1.5 : 0)
                 )
-                .cornerRadius(16)
+                .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
-        .shadow(color: .pink.opacity(0.4), radius: 8, x: 0, y: 4)
+        .shadow(color: style == .primary ? Color.pink.opacity(0.4) : .clear, radius: 8, x: 0, y: 4)
+    }
+    
+    private var backgroundView: some View {
+        Group {
+            if style == .primary {
+                LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
+            } else {
+                Color.clear
+            }
+        }
+    }
+    
+    private var textColor: Color {
+        style == .primary ? .white : .pink
+    }
+    
+    private var borderColor: Color {
+        style == .secondary ? Color.pink.opacity(0.9) : .clear
     }
 }
