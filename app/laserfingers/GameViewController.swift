@@ -287,6 +287,21 @@ struct LevelIconButton: View {
         .contextMenu {
             if coordinator.settings.advancedModeEnabled {
                 Button {
+                    copyIdentifier(entry.level.id)
+                } label: {
+                    Label("ID: \(entry.level.id)", systemImage: "number")
+                }
+                if let uuidString = entry.level.uuid?.uuidString {
+                    Button {
+                        copyIdentifier(uuidString)
+                    } label: {
+                        Label("UUID: \(uuidString)", systemImage: "circle.grid.2x2")
+                    }
+                } else {
+                    Label("UUID: Not Set", systemImage: "circle.grid.2x2")
+                        .foregroundColor(.white.opacity(0.6))
+                }
+                Button {
                     copyLevelJSON(entry.level)
                 } label: {
                     Label("Copy Level JSON", systemImage: "doc.on.doc")
@@ -329,11 +344,19 @@ struct LevelIconButton: View {
     private func copyLevelJSON(_ level: Level) {
         guard let data = try? encoder.encode(level),
               let json = String(data: data, encoding: .utf8) else { return }
+        copyToPasteboard(json)
+    }
+
+    private func copyIdentifier(_ value: String) {
+        copyToPasteboard(value)
+    }
+
+    private func copyToPasteboard(_ string: String) {
 #if os(iOS)
-        UIPasteboard.general.string = json
+        UIPasteboard.general.string = string
 #elseif os(macOS)
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(json, forType: .string)
+        NSPasteboard.general.setString(string, forType: .string)
 #endif
     }
 }

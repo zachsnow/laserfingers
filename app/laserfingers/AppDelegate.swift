@@ -225,7 +225,7 @@ final class AppCoordinator: ObservableObject {
     private func unlockLevels(withIDs ids: [String], progress: inout [LevelProgress]) {
         guard !ids.isEmpty else { return }
         for targetID in ids {
-            guard let index = progress.firstIndex(where: { $0.level.id == targetID }) else { continue }
+            guard let index = progress.firstIndex(where: { level($0.level, matchesIdentifier: targetID) }) else { continue }
             if progress[index].state == .locked {
                 progress[index].state = .unlocked
             }
@@ -293,6 +293,14 @@ final class AppCoordinator: ObservableObject {
     
     private func progressKey(for level: Level) -> String {
         level.uuid?.uuidString ?? level.id
+    }
+
+    private func level(_ level: Level, matchesIdentifier identifier: String) -> Bool {
+        if let uuidString = level.uuid?.uuidString,
+           uuidString.caseInsensitiveCompare(identifier) == .orderedSame {
+            return true
+        }
+        return level.id == identifier
     }
     
     private func indexOfLevel(_ level: Level, in progress: [LevelProgress]) -> Int? {
@@ -397,7 +405,7 @@ struct LevelProgress: Identifiable {
     let level: Level
     var state: State
     
-    var id: String { level.id }
+    var id: String { level.uuid?.uuidString ?? level.id }
 }
 
 struct LevelPackProgress: Identifiable {
