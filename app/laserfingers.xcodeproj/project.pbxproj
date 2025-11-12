@@ -14,6 +14,7 @@
 		19B1325F2EC1494D00945EDF /* Laserfingers */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			explicitFolders = (
+				Images,
 				Levels,
 			);
 			path = Laserfingers;

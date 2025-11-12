@@ -12,7 +12,16 @@ final class LaserGameScene: SKScene {
     private let level: Level
     private let session: GameSession
     private let settings: GameSettings
-    
+    private lazy var backgroundImageNode: SKSpriteNode = {
+        if let texture = BackgroundImageResource.texture() {
+            let node = SKSpriteNode(texture: texture)
+            node.blendMode = .replace
+            node.name = "GameplayBackgroundImage"
+            return node
+        } else {
+            fatalError( "fuck")
+        }
+    }()
     private var buttonStates: [ButtonRuntime] = []
     private var laserStates: [LaserRuntime] = []
     private var laserIndexById: [String: Int] = [:]
@@ -41,7 +50,6 @@ final class LaserGameScene: SKScene {
         self.settings = settings
         super.init(size: CGSize(width: 1920, height: 1080))
         scaleMode = .resizeFill
-        backgroundColor = SKColor(red: 8/255, green: 9/255, blue: 20/255, alpha: 1)
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -59,6 +67,7 @@ final class LaserGameScene: SKScene {
     
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
+        updateBackgroundImageLayout()
         layoutScene()
         updateAlertOverlayFrame()
     }
@@ -74,16 +83,23 @@ final class LaserGameScene: SKScene {
     }
     
     private func addBackground() {
-        let backdrop = SKSpriteNode(color: SKColor(red: 12/255, green: 6/255, blue: 25/255, alpha: 1), size: CGSize(width: size.width * 1.4, height: size.height * 1.4))
-        backdrop.zPosition = -10
-        backdrop.alpha = 0.9
-        addChild(backdrop)
-        
-        let glow = SKShapeNode(rectOf: CGSize(width: size.width * 0.8, height: size.height * 0.8), cornerRadius: 40)
-        glow.fillColor = SKColor(red: 0.2, green: 0, blue: 0.3, alpha: 0.4)
-        glow.strokeColor = .clear
-        glow.zPosition = -9
-        addChild(glow)
+        if backgroundImageNode.parent !== self {
+            backgroundImageNode.zPosition = -120
+            backgroundImageNode.alpha = 1
+            backgroundImageNode.isHidden = false
+            addChild(backgroundImageNode)
+        }
+        updateBackgroundImageLayout()
+
+    }
+    
+    private func updateBackgroundImageLayout() {
+        guard size.width > 0, size.height > 0 else { return }
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        backgroundImageNode.position = center
+        let referenceSize = backgroundImageNode.texture?.size() ?? CGSize(width: 1, height: 1)
+        let scale = max(size.width / referenceSize.width, size.height / referenceSize.height)
+        backgroundImageNode.size = CGSize(width: referenceSize.width * scale, height: referenceSize.height * scale)
     }
     
     private func addAlertOverlay() {
@@ -421,16 +437,6 @@ extension LaserObstacle {
 // MARK: - Shared Background
 
 private final class BackgroundLayer: SKNode {
-    private static func makeBackgroundTexture() -> SKTexture {
-        #if os(iOS)
-        if let image = UIImage(named: "bg") ?? UIImage(named: "Background") {
-            return SKTexture(image: image)
-        }
-        #endif
-        fatalError("Missing Background asset. Ensure Assets.xcassets contains 'bg' (or 'Background').")
-    }
-    
-    private let baseTexture = BackgroundLayer.makeBackgroundTexture()
     private let baseSprite: SKSpriteNode
     private let glowSprite: SKSpriteNode
     private let sweepNode: SKShapeNode
@@ -440,8 +446,9 @@ private final class BackgroundLayer: SKNode {
     private let rimLight: SKLightNode
     
     override init() {
-        baseSprite = SKSpriteNode(texture: baseTexture)
-        glowSprite = SKSpriteNode(texture: baseTexture)
+        let texture = BackgroundImageResource.texture()
+        baseSprite = SKSpriteNode(texture: texture)
+        glowSprite = SKSpriteNode(texture: texture)
         sweepNode = SKShapeNode()
         flareOverlay = SKSpriteNode(color: SKColor(red: 1, green: 0.35, blue: 1, alpha: 0.35), size: .zero)
         vignetteOverlay = SKSpriteNode(color: SKColor(white: 0, alpha: 0.55), size: .zero)

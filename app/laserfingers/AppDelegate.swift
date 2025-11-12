@@ -45,22 +45,36 @@ final class AppCoordinator: ObservableObject {
     private let progressStore = ProgressStore()
     private let levelPacks: [LevelPack]
     private let levels: [Level]
+    private var cancellables: Set<AnyCancellable> = []
     
     init() {
         let storedSettings = progressStore.loadSettings()
-        self._settings = Published(initialValue: storedSettings)
+        _settings = Published(initialValue: storedSettings)
+        
+        let resolvedData: (packs: [LevelPack], levels: [Level], progress: [LevelProgress])
         do {
             let loadedPacks = try LevelRepository.load()
             let flattenedLevels = loadedPacks.flatMap { $0.levels }
-            self.levelPacks = loadedPacks
-            self.levels = flattenedLevels
-            self.levelProgress = progressStore.loadProgress(for: flattenedLevels)
+            let storedProgress = progressStore.loadProgress(for: flattenedLevels)
+            resolvedData = (loadedPacks, flattenedLevels, storedProgress)
         } catch {
-            self.levelPacks = []
-            self.levels = []
-            self.levelProgress = []
-            self.loadErrorMessage = String(describing: error)
+            loadErrorMessage = String(describing: error)
+            resolvedData = ([], [], [])
         }
+        
+        self.levelPacks = resolvedData.packs
+        self.levels = resolvedData.levels
+        self.levelProgress = resolvedData.progress
+        
+        NotificationCenter.default.publisher(for: BackgroundImageResource.errorNotification)
+            .compactMap { $0.userInfo?["message"] as? String }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] message in
+                self?.loadErrorMessage = message
+            }
+            .store(in: &cancellables)
+        
+        BackgroundImageResource.validatePresence()
     }
     
     func goToMainMenu() {
