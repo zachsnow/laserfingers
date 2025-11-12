@@ -1,0 +1,94 @@
+{
+  "id": "tutorial-rotor-01",
+  "title": "Rotor Locks",
+  "description": "Charge both locks while the rotor spins.",
+  "maxTouches": 2,
+  "lives": 1,
+  "buttons": [
+    {
+      "id": "west-lock",
+      "position": {
+        "x": -1.0,
+        "y": 0.0
+      },
+      "timing": {
+        "chargeSeconds": 1.5,
+        "holdSeconds": null,
+        "drainSeconds": 2.0
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#FF6B6B",
+        "glow": "#FFD6A5",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "west-pad",
+          "shape": {
+            "type": "circle",
+            "radius": 0.28
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": []
+    },
+    {
+      "id": "east-lock",
+      "position": {
+        "x": 1.0,
+        "y": 0.0
+      },
+      "timing": {
+        "chargeSeconds": 1.5,
+        "holdSeconds": null,
+        "drainSeconds": 2.0
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#4CC9F0",
+        "glow": "#A3CEFF",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "east-pad",
+          "shape": {
+            "type": "circle",
+            "radius": 0.28
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": []
+    }
+  ],
+  "lasers": [
+    {
+      "id": "central-rotor",
+      "color": "#F9F871",
+      "thickness": 0.02,
+      "kind": {
+        "type": "rotor",
+        "rotor": {
+          "center": {
+            "x": 0.0,
+            "y": 0.0
+          },
+          "speedDegreesPerSecond": 180,
+          "initialAngleDegrees": 0
+        }
+      }
+    }
+  ],
+  "unlocks": []
+}
