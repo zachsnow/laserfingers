@@ -425,15 +425,18 @@ struct GameplayView: View {
 
 struct GameHUDView: View {
     @ObservedObject var session: GameSession
+    private let hudTextShadowColor = Color.black.opacity(0.85)
     
     var body: some View {
         HStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(session.level.title)
                     .font(.headline)
+                    .shadow(color: hudTextShadowColor, radius: 2, x: 0, y: 1)
                 Text(session.level.description)
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.75))
+                    .shadow(color: hudTextShadowColor, radius: 2, x: 0, y: 1)
                     .lineLimit(2)
             }
             Spacer(minLength: 12)
@@ -443,6 +446,7 @@ struct GameHUDView: View {
                     Text(concurrency)
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.75))
+                        .shadow(color: hudTextShadowColor, radius: 2, x: 0, y: 1)
                 }
             }
         }

@@ -5,22 +5,27 @@
 //  Created by Zach Snow on 11/9/25.
 //
 
+import Foundation
 import SpriteKit
 import UIKit
+
+private enum LightingMask {
+    static let button: UInt32 = 1 << 0
+    static let laser: UInt32 = 1 << 1
+}
 
 final class LaserGameScene: SKScene {
     private let level: Level
     private let session: GameSession
     private let settings: GameSettings
-    private lazy var backgroundImageNode: SKSpriteNode = {
-        if let texture = BackgroundImageResource.texture() {
-            let node = SKSpriteNode(texture: texture)
-            node.blendMode = .replace
-            node.name = "GameplayBackgroundImage"
-            return node
-        } else {
-            fatalError( "fuck")
-        }
+    private let backgroundImageNode: SKSpriteNode = {
+        let node = SKSpriteNode()
+        node.zPosition = -120
+        node.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        node.lightingBitMask = LightingMask.laser
+        node.blendMode = .replace
+        node.name = "GameplayBackgroundImage"
+        return node
     }()
     private var buttonStates: [ButtonRuntime] = []
     private var laserStates: [LaserRuntime] = []
@@ -50,6 +55,7 @@ final class LaserGameScene: SKScene {
         self.settings = settings
         super.init(size: CGSize(width: 1920, height: 1080))
         scaleMode = .resizeFill
+        backgroundColor = .black
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -83,17 +89,59 @@ final class LaserGameScene: SKScene {
     }
     
     private func addBackground() {
-        if backgroundImageNode.parent !== self {
-            backgroundImageNode.zPosition = -120
-            backgroundImageNode.alpha = 1
-            backgroundImageNode.isHidden = false
-            addChild(backgroundImageNode)
+        backgroundImageNode.removeFromParent()
+        guard let texture = loadBackgroundTexture() else {
+            backgroundColor = .black
+            return
         }
+        backgroundColor = .black
+        backgroundImageNode.texture = texture
+        backgroundImageNode.size = texture.size()
+        addChild(backgroundImageNode)
         updateBackgroundImageLayout()
-
+    }
+    
+    private func loadBackgroundTexture() -> SKTexture? {
+        guard let path = resolveBackgroundImagePath() else { return nil }
+        return SKTexture(imageNamed: path)
+    }
+    
+    private func resolveBackgroundImagePath() -> String? {
+        guard let backgroundImage = level.backgroundImage else { return nil }
+        guard let directory = level.directory else {
+            FatalErrorReporter.report("Level \(level.id) specified background image \(backgroundImage) but no source directory was recorded.")
+            return nil
+        }
+        let resolvedURL = URL(fileURLWithPath: backgroundImage, relativeTo: directory).standardizedFileURL
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: resolvedURL.path) else {
+            FatalErrorReporter.report("Background image \(backgroundImage) for level \(level.id) does not exist at \(resolvedURL.path).")
+            return nil
+        }
+        guard let bundleRoot = Bundle.main.resourceURL?.standardizedFileURL else {
+            FatalErrorReporter.report("Unable to resolve bundle resource path when loading level \(level.id) background image.")
+            return nil
+        }
+        let resourcePath = resolvedURL.path
+        let bundlePath = bundleRoot.path
+        guard resourcePath.hasPrefix(bundlePath) else {
+            FatalErrorReporter.report("Background image \(backgroundImage) for level \(level.id) resolves outside of the app bundle.")
+            return nil
+        }
+        guard resourcePath.count > bundlePath.count else {
+            FatalErrorReporter.report("Failed to compute relative path for background image \(backgroundImage) in level \(level.id).")
+            return nil
+        }
+        let startIndex = resourcePath.index(resourcePath.startIndex, offsetBy: bundlePath.count + 1)
+        guard startIndex <= resourcePath.endIndex else {
+            FatalErrorReporter.report("Failed to compute relative path for background image \(backgroundImage) in level \(level.id).")
+            return nil
+        }
+        return String(resourcePath[startIndex...])
     }
     
     private func updateBackgroundImageLayout() {
+        guard backgroundImageNode.parent != nil else { return }
         guard size.width > 0, size.height > 0 else { return }
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         backgroundImageNode.position = center
@@ -166,6 +214,7 @@ final class LaserGameScene: SKScene {
             guard var runtime = makeLaserRuntime(from: spec, transform: transform) else { continue }
             runtime.node.startMotion()
             runtime.applyFiringState(immediate: true)
+            runtime.node.zPosition = 10
             addChild(runtime.node)
             laserIndexById[spec.id] = laserStates.count
             laserStates.append(runtime)
@@ -434,6 +483,98 @@ extension LaserObstacle {
     func updateLayout(using transform: NormalizedLayoutTransform) {}
 }
 
+private class BaseLaserNode: SKNode, LaserObstacle {
+    let color: SKColor
+    let beam = SKShapeNode()
+    let glowShell = SKShapeNode()
+    let bloomNode = SKEffectNode()
+    let bloomShape = SKShapeNode()
+    let lightNode = SKLightNode()
+    private var firingState = true
+    
+    init(color: SKColor) {
+        self.color = color
+        super.init()
+        setupNodes()
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    private func setupNodes() {
+        beam.fillColor = color
+        beam.strokeColor = color.withAlphaComponent(0.85)
+        beam.glowWidth = 0
+        beam.blendMode = .add
+        
+        glowShell.fillColor = color.withAlphaComponent(0.4)
+        glowShell.strokeColor = color.withAlphaComponent(0.18)
+        glowShell.blendMode = .add
+        glowShell.zPosition = -1
+        addChild(glowShell)
+        
+        bloomShape.fillColor = color.withAlphaComponent(0.6)
+        bloomShape.strokeColor = color.withAlphaComponent(0.25)
+        bloomShape.lineWidth = 0
+        bloomShape.glowWidth = 0
+        
+        bloomNode.shouldRasterize = true
+        bloomNode.shouldEnableEffects = true
+        bloomNode.blendMode = .add
+        bloomNode.zPosition = glowShell.zPosition + 0.5
+        bloomNode.addChild(bloomShape)
+        addChild(bloomNode)
+        
+        lightNode.categoryBitMask = LightingMask.laser
+        lightNode.falloff = 0.7
+        lightNode.ambientColor = color.withAlphaComponent(0.2)
+        lightNode.lightColor = color.withAlphaComponent(0.95)
+        lightNode.alpha = 0
+        lightNode.isEnabled = false
+        addChild(lightNode)
+        
+        addChild(beam)
+    }
+    
+    func startMotion() {}
+    
+    func updateLayout(using transform: NormalizedLayoutTransform) {}
+    
+    func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
+        guard firingState else { return false }
+        let localPoint = convert(scenePoint, from: scene)
+        return beam.contains(localPoint)
+    }
+    
+    func setFiring(active: Bool) {
+        let stateChanged = firingState != active
+        firingState = active
+        beam.alpha = active ? 1.0 : 0.05
+        glowShell.alpha = active ? glowShell.alpha : glowShell.alpha * 0.2
+        bloomNode.alpha = active ? 1.0 : 0.1
+        lightNode.isEnabled = active
+        if stateChanged {
+            if active {
+                didActivateLaser()
+            } else {
+                didDeactivateLaser()
+            }
+        }
+    }
+    
+    func didActivateLaser() {}
+    func didDeactivateLaser() {}
+    
+    var isLaserActive: Bool { firingState }
+    
+    func updateBloomFilter(radius: CGFloat) {
+        let filter = CIFilter(name: "CIGaussianBlur")
+        filter?.setValue(radius, forKey: kCIInputRadiusKey)
+        bloomNode.filter = filter
+    }
+}
+
 // MARK: - Shared Background
 
 private final class BackgroundLayer: SKNode {
@@ -446,7 +587,7 @@ private final class BackgroundLayer: SKNode {
     private let rimLight: SKLightNode
     
     override init() {
-        let texture = BackgroundImageResource.texture()
+        let texture = SKTexture(imageNamed: "Images/bg.jpg")
         baseSprite = SKSpriteNode(texture: texture)
         glowSprite = SKSpriteNode(texture: texture)
         sweepNode = SKShapeNode()
@@ -740,7 +881,7 @@ private final class ButtonNode: SKNode {
         self.colorSpec = button.color
         lightNode = SKLightNode()
         super.init()
-        lightNode.categoryBitMask = 1
+        lightNode.categoryBitMask = LightingMask.button
         lightNode.falloff = 3
         lightNode.ambientColor = .clear
         lightNode.lightColor = SKColor.fromHex(button.color.fill, alpha: 0.35)
@@ -1077,57 +1218,25 @@ private struct NormalizedLayoutTransform {
 }
 
 
-private final class SweepingLaserNode: SKNode, LaserObstacle {
+private final class SweepingLaserNode: BaseLaserNode {
     private let spec: Level.Laser.Sweeper
     private let thicknessScale: CGFloat
-    private let color: SKColor
-    private let beam: SKShapeNode
-    private let glowShell: SKShapeNode
-    private let bloomNode: SKEffectNode
-    private let bloomShape: SKShapeNode
-    private let lightNode: SKLightNode
     private var startPoint: CGPoint = .zero
     private var endPoint: CGPoint = .zero
-    private var isFiring = true
     private var motionActive = false
     
     init(spec: Level.Laser.Sweeper, thicknessScale: CGFloat, color: SKColor) {
         self.spec = spec
         self.thicknessScale = thicknessScale
-        self.color = color
-        beam = SKShapeNode()
-        glowShell = SKShapeNode()
-        bloomNode = SKEffectNode()
-        bloomShape = SKShapeNode()
-        lightNode = SKLightNode()
-        super.init()
-        beam.fillColor = color
-        beam.strokeColor = color.withAlphaComponent(0.85)
-        beam.glowWidth = 0
-        beam.blendMode = .add
+        super.init(color: color)
         glowShell.fillColor = color.withAlphaComponent(0.45)
         glowShell.strokeColor = color.withAlphaComponent(0.2)
-        glowShell.blendMode = .add
-        glowShell.zPosition = -1
-        addChild(glowShell)
-        bloomNode.shouldRasterize = true
-        bloomNode.shouldEnableEffects = true
-        bloomNode.blendMode = .add
-        bloomNode.zPosition = glowShell.zPosition + 0.5
         bloomShape.fillColor = color.withAlphaComponent(0.65)
         bloomShape.strokeColor = color.withAlphaComponent(0.25)
-        bloomShape.lineWidth = 0
-        bloomShape.glowWidth = 0
-        bloomNode.addChild(bloomShape)
-        addChild(bloomNode)
-        lightNode.categoryBitMask = 0
         lightNode.falloff = 0.7
         lightNode.ambientColor = color.withAlphaComponent(0.2)
         lightNode.lightColor = color.withAlphaComponent(0.95)
         lightNode.alpha = 1.0
-        lightNode.isEnabled = false
-        addChild(lightNode)
-        addChild(beam)
         startGlowShimmer()
     }
     
@@ -1135,13 +1244,15 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func startMotion() {
+    override func startMotion() {
         motionActive = true
         restartMotion()
-        startAfterimageLoop()
+        if isLaserActive {
+            startAfterimageLoop()
+        }
     }
     
-    func updateLayout(using transform: NormalizedLayoutTransform) {
+    override func updateLayout(using transform: NormalizedLayoutTransform) {
         let thickness = max(transform.length(from: thicknessScale), 1)
         let length = hypot(transform.frame.width, transform.frame.height) * 1.1
         let rect = CGRect(x: -length / 2, y: -thickness / 2, width: length, height: thickness)
@@ -1182,23 +1293,14 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
         run(SKAction.repeatForever(loop), withKey: "patrol")
     }
     
-    func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
-        guard isFiring else { return false }
-        let localPoint = convert(scenePoint, from: scene)
-        return beam.contains(localPoint)
-    }
-    
-    func setFiring(active: Bool) {
-        isFiring = active
-        beam.alpha = active ? 1.0 : 0.05
-        glowShell.alpha = active ? glowShell.alpha : glowShell.alpha * 0.2
-        bloomNode.alpha = active ? 1.0 : 0.1
-        lightNode.isEnabled = active
-        if !active {
-            removeAction(forKey: "afterimage")
-        } else if action(forKey: "afterimage") == nil {
+    override func didActivateLaser() {
+        if action(forKey: "afterimage") == nil {
             startAfterimageLoop()
         }
+    }
+    
+    override func didDeactivateLaser() {
+        removeAction(forKey: "afterimage")
     }
     
     private func startAfterimageLoop() {
@@ -1208,12 +1310,6 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
             self?.spawnAfterimage()
         }
         run(SKAction.repeatForever(SKAction.sequence([spawn, wait])), withKey: "afterimage")
-    }
-    
-    private func updateBloomFilter(radius: CGFloat) {
-        let filter = CIFilter(name: "CIGaussianBlur")
-        filter?.setValue(radius, forKey: kCIInputRadiusKey)
-        bloomNode.filter = filter
     }
     
     private func spawnAfterimage() {
@@ -1261,54 +1357,22 @@ private final class SweepingLaserNode: SKNode, LaserObstacle {
     }
 }
 
-private final class RotatingLaserNode: SKNode, LaserObstacle {
+private final class RotatingLaserNode: BaseLaserNode {
     private let spec: Level.Laser.Rotor
     private let thicknessScale: CGFloat
-    private let color: SKColor
-    private let beam: SKShapeNode
-    private let glowShell: SKShapeNode
-    private let bloomNode: SKEffectNode
-    private let bloomShape: SKShapeNode
-    private let lightNode: SKLightNode
-    private var isFiring = true
     private var motionActive = false
     
     init(spec: Level.Laser.Rotor, thicknessScale: CGFloat, color: SKColor) {
         self.spec = spec
         self.thicknessScale = thicknessScale
-        self.color = color
-        beam = SKShapeNode()
-        glowShell = SKShapeNode()
-        bloomNode = SKEffectNode()
-        bloomShape = SKShapeNode()
-        lightNode = SKLightNode()
-        super.init()
-        beam.fillColor = color
-        beam.strokeColor = color.withAlphaComponent(0.85)
-        beam.blendMode = .add
+        super.init(color: color)
         glowShell.fillColor = color.withAlphaComponent(0.4)
         glowShell.strokeColor = color.withAlphaComponent(0.18)
-        glowShell.blendMode = .add
-        glowShell.zPosition = -1
-        addChild(glowShell)
-        bloomNode.shouldRasterize = true
-        bloomNode.shouldEnableEffects = true
-        bloomNode.blendMode = .add
-        bloomNode.zPosition = glowShell.zPosition + 0.5
         bloomShape.fillColor = color.withAlphaComponent(0.6)
         bloomShape.strokeColor = color.withAlphaComponent(0.25)
-        bloomShape.lineWidth = 0
-        bloomShape.glowWidth = 0
-        bloomNode.addChild(bloomShape)
-        addChild(bloomNode)
-        lightNode.categoryBitMask = 0
         lightNode.falloff = 0.6
         lightNode.ambientColor = color.withAlphaComponent(0.2)
         lightNode.lightColor = color.withAlphaComponent(0.95)
-        lightNode.alpha = 0
-        lightNode.isEnabled = false
-        addChild(lightNode)
-        addChild(beam)
         startGlowShimmer()
     }
     
@@ -1316,14 +1380,14 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func startMotion() {
+    override func startMotion() {
         guard spec.speedDegreesPerSecond != 0 else { return }
         motionActive = true
         restartSpin()
         startAfterimageLoop()
     }
     
-    func updateLayout(using transform: NormalizedLayoutTransform) {
+    override func updateLayout(using transform: NormalizedLayoutTransform) {
         let thickness = max(transform.length(from: thicknessScale), 1)
         let armLength = max(transform.frame.width, transform.frame.height) * 1.4
         let rect = CGRect(x: -thickness / 2, y: -armLength / 2, width: thickness, height: armLength)
@@ -1357,23 +1421,14 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
         run(SKAction.repeatForever(rotation), withKey: "spin")
     }
     
-    func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
-        guard isFiring else { return false }
-        let localPoint = convert(scenePoint, from: scene)
-        return beam.contains(localPoint)
-    }
-    
-    func setFiring(active: Bool) {
-        isFiring = active
-        beam.alpha = active ? 1.0 : 0.05
-        glowShell.alpha = active ? glowShell.alpha : glowShell.alpha * 0.2
-        bloomNode.alpha = active ? 1.0 : 0.1
-        lightNode.isEnabled = active
-        if !active {
-            removeAction(forKey: "afterimage")
-        } else if action(forKey: "afterimage") == nil {
+    override func didActivateLaser() {
+        if action(forKey: "afterimage") == nil {
             startAfterimageLoop()
         }
+    }
+    
+    override func didDeactivateLaser() {
+        removeAction(forKey: "afterimage")
     }
 
     private func startGlowShimmer() {
@@ -1423,71 +1478,34 @@ private final class RotatingLaserNode: SKNode, LaserObstacle {
         ]))
     }
     
-    private func updateBloomFilter(radius: CGFloat) {
-        let filter = CIFilter(name: "CIGaussianBlur")
-        filter?.setValue(radius, forKey: kCIInputRadiusKey)
-        bloomNode.filter = filter
-    }
 }
 
-private final class SegmentLaserNode: SKNode, LaserObstacle {
+private final class SegmentLaserNode: BaseLaserNode {
     private let spec: Level.Laser.Segment
     private let thicknessScale: CGFloat
-    private let color: SKColor
-    private let beam: SKShapeNode
-    private let glowShell: SKShapeNode
-    private let bloomNode: SKEffectNode
-    private let bloomShape: SKShapeNode
-    private let lightNode: SKLightNode
-    private var isFiring = true
     
     init(spec: Level.Laser.Segment, thicknessScale: CGFloat, color: SKColor) {
         self.spec = spec
         self.thicknessScale = thicknessScale
-        self.color = color
-        beam = SKShapeNode()
-        glowShell = SKShapeNode()
-        bloomNode = SKEffectNode()
-        bloomShape = SKShapeNode()
-        lightNode = SKLightNode()
-        super.init()
-        beam.fillColor = color
-        beam.strokeColor = color.withAlphaComponent(0.85)
-        beam.blendMode = .add
+        super.init(color: color)
         glowShell.fillColor = color.withAlphaComponent(0.4)
         glowShell.strokeColor = color.withAlphaComponent(0.18)
-        glowShell.blendMode = .add
-        glowShell.zPosition = -1
-        addChild(glowShell)
-        bloomNode.shouldRasterize = true
-        bloomNode.shouldEnableEffects = true
-        bloomNode.blendMode = .add
-        bloomNode.zPosition = glowShell.zPosition + 0.5
         bloomShape.fillColor = color.withAlphaComponent(0.6)
         bloomShape.strokeColor = color.withAlphaComponent(0.25)
-        bloomShape.lineWidth = 0
-        bloomShape.glowWidth = 0
-        bloomNode.addChild(bloomShape)
-        addChild(bloomNode)
-        lightNode.categoryBitMask = 0
         lightNode.falloff = 0.8
         lightNode.ambientColor = color.withAlphaComponent(0.15)
         lightNode.lightColor = color.withAlphaComponent(0.95)
-        lightNode.alpha = 0
-        lightNode.isEnabled = false
-        addChild(lightNode)
-        addChild(beam)
     }
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
-    func startMotion() {
+    override func startMotion() {
         startGlowShimmer()
     }
     
-    func updateLayout(using transform: NormalizedLayoutTransform) {
+    override func updateLayout(using transform: NormalizedLayoutTransform) {
         let thickness = max(transform.length(from: thicknessScale), 1)
         let startPoint = transform.point(from: spec.start)
         let endPoint = transform.point(from: spec.end)
@@ -1517,19 +1535,8 @@ private final class SegmentLaserNode: SKNode, LaserObstacle {
         zRotation = atan2(dy, dx)
     }
     
-    func isDangerous(at scenePoint: CGPoint, in scene: SKScene) -> Bool {
-        guard isFiring else { return false }
-        let localPoint = convert(scenePoint, from: scene)
-        return beam.contains(localPoint)
-    }
-    
-    func setFiring(active: Bool) {
-        isFiring = active
-        beam.alpha = active ? 1.0 : 0.05
-        glowShell.alpha = active ? glowShell.alpha : glowShell.alpha * 0.2
-        bloomNode.alpha = active ? 1.0 : 0.1
-        lightNode.isEnabled = active
-        if active, glowShell.action(forKey: "segmentGlow") == nil {
+    override func didActivateLaser() {
+        if glowShell.action(forKey: "segmentGlow") == nil {
             startGlowShimmer()
         }
     }
@@ -1554,12 +1561,6 @@ private final class SegmentLaserNode: SKNode, LaserObstacle {
             SKAction.fadeAlpha(to: 0.45, duration: duration)
         ])
         lightNode.run(SKAction.repeatForever(lightSequence), withKey: "segmentLight")
-    }
-    
-    private func updateBloomFilter(radius: CGFloat) {
-        let filter = CIFilter(name: "CIGaussianBlur")
-        filter?.setValue(radius, forKey: kCIInputRadiusKey)
-        bloomNode.filter = filter
     }
 }
 

@@ -2,6 +2,7 @@
   "id": "tutorial-rotor-01",
   "title": "Rotor Locks",
   "description": "Charge both locks while the rotor spins.",
+  "backgroundImage": "../../Images/bg.jpg",
   "maxTouches": 2,
   "lives": 1,
   "buttons": [

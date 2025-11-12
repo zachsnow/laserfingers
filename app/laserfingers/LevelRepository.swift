@@ -80,7 +80,9 @@ enum LevelRepository {
         return try levelFiles.map { url in
             do {
                 let data = try Data(contentsOf: url)
-                return try decoder.decode(Level.self, from: data)
+                var level = try decoder.decode(Level.self, from: data)
+                level.setDirectory(url.deletingLastPathComponent())
+                return level
             } catch let error as DecodingError {
                 throw LoadingError.decodeFailure(url, error)
             } catch {

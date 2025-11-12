@@ -2,6 +2,7 @@
   "id": "tutorial-sweeper-01",
   "title": "Sweep Awareness",
   "description": "Charge the center node while the horizontal laser sweeps.",
+  "backgroundImage": "../../Images/bg.jpg",
   "maxTouches": 2,
   "buttons": [
     {

@@ -141,12 +141,86 @@ struct Level: Identifiable, Codable, Hashable {
     let buttons: [Button]
     let lasers: [Laser]
     let unlocks: [String]?
+    let backgroundImage: String?
+    private(set) var directory: URL?
+    
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case description
+        case maxTouches
+        case lives
+        case devices
+        case buttons
+        case lasers
+        case unlocks
+        case backgroundImage
+    }
+    
+    init(
+        id: String,
+        title: String,
+        description: String,
+        maxTouches: Int?,
+        lives: Int?,
+        devices: [Device]?,
+        buttons: [Button],
+        lasers: [Laser],
+        unlocks: [String]?,
+        backgroundImage: String?,
+        directory: URL? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.maxTouches = maxTouches
+        self.lives = lives
+        self.devices = devices
+        self.buttons = buttons
+        self.lasers = lasers
+        self.unlocks = unlocks
+        self.backgroundImage = backgroundImage
+        self.directory = directory
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decode(String.self, forKey: .description)
+        maxTouches = try container.decodeIfPresent(Int.self, forKey: .maxTouches)
+        lives = try container.decodeIfPresent(Int.self, forKey: .lives)
+        devices = try container.decodeIfPresent([Device].self, forKey: .devices)
+        buttons = try container.decode([Button].self, forKey: .buttons)
+        lasers = try container.decode([Laser].self, forKey: .lasers)
+        unlocks = try container.decodeIfPresent([String].self, forKey: .unlocks)
+        backgroundImage = try container.decodeIfPresent(String.self, forKey: .backgroundImage)
+        directory = nil
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(description, forKey: .description)
+        try container.encodeIfPresent(maxTouches, forKey: .maxTouches)
+        try container.encodeIfPresent(lives, forKey: .lives)
+        try container.encodeIfPresent(devices, forKey: .devices)
+        try container.encode(buttons, forKey: .buttons)
+        try container.encode(lasers, forKey: .lasers)
+        try container.encodeIfPresent(unlocks, forKey: .unlocks)
+        try container.encodeIfPresent(backgroundImage, forKey: .backgroundImage)
+    }
 }
 
 extension Level {
     func supports(_ device: DeviceProfile.Kind) -> Bool {
         guard let devices = devices, !devices.isEmpty else { return true }
         return devices.contains { $0.rawValue == device.rawValue }
+    }
+    
+    mutating func setDirectory(_ url: URL) {
+        directory = url
     }
 }
 

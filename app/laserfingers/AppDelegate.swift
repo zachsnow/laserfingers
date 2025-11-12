@@ -66,15 +66,13 @@ final class AppCoordinator: ObservableObject {
         self.levels = resolvedData.levels
         self.levelProgress = resolvedData.progress
         
-        NotificationCenter.default.publisher(for: BackgroundImageResource.errorNotification)
+        NotificationCenter.default.publisher(for: FatalErrorReporter.notification)
             .compactMap { $0.userInfo?["message"] as? String }
             .receive(on: RunLoop.main)
             .sink { [weak self] message in
                 self?.loadErrorMessage = message
             }
             .store(in: &cancellables)
-        
-        BackgroundImageResource.validatePresence()
     }
     
     func goToMainMenu() {
