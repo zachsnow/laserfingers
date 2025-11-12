@@ -50,6 +50,12 @@ struct RootContainerView: View {
             LevelSelectView()
         case .advancedMenu:
             AdvancedMenuView()
+        case .levelEditor:
+            if let editorViewModel = coordinator.levelEditorViewModel {
+                LevelEditorView(viewModel: editorViewModel)
+            } else {
+                MainMenuView()
+            }
         case .gameplay:
             if let runtime = coordinator.activeGame {
                 GameplayView(runtime: runtime)
@@ -158,6 +164,9 @@ struct AdvancedMenuView: View {
                 Toggle("Infinite Slots", isOn: $coordinator.settings.infiniteSlotsEnabled)
                     .toggleStyle(SwitchToggleStyle(tint: .pink))
                     .accessibilityIdentifier("advanced_infinite_slots_toggle")
+                LaserButton(title: "Level Editor") {
+                    coordinator.openLevelEditor(with: nil)
+                }
                 LaserButton(title: "Import Level Code") {
                     coordinator.presentImportSheet(initialPayload: nil)
                 }
@@ -300,6 +309,11 @@ struct LevelIconButton: View {
                 } else {
                     Label("UUID: Not Set", systemImage: "circle.grid.2x2")
                         .foregroundColor(.white.opacity(0.6))
+                }
+                Button {
+                    coordinator.openLevelEditor(with: entry.level)
+                } label: {
+                    Label("Edit in Level Editor", systemImage: "pencil.and.outline")
                 }
                 Button {
                     copyLevelJSON(entry.level)

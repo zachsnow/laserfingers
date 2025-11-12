@@ -35,6 +35,7 @@ final class AppCoordinator: ObservableObject {
         case levelSelect
         case gameplay
         case advancedMenu
+        case levelEditor
     }
     @Published var screen: Screen = .mainMenu
     @Published var settings: GameSettings {
@@ -44,11 +45,13 @@ final class AppCoordinator: ObservableObject {
     @Published var activeGame: GameRuntime?
     @Published var loadErrorMessage: String?
     @Published var importSheetState: ImportSheetState?
+    @Published var levelEditorViewModel: LevelEditorViewModel?
     
     private let progressStore = ProgressStore()
     private var levelPacks: [LevelPack] = []
     private var levels: [Level] = []
     private var cancellables: Set<AnyCancellable> = []
+    private var screenBeforeLevelEditor: Screen?
     
     init() {
         let storedSettings = progressStore.loadSettings()
@@ -87,6 +90,20 @@ final class AppCoordinator: ObservableObject {
     func showAdvancedMenu() {
         guard settings.advancedModeEnabled else { return }
         screen = .advancedMenu
+    }
+    
+    func openLevelEditor(with level: Level?) {
+        guard settings.advancedModeEnabled else { return }
+        screenBeforeLevelEditor = screen
+        levelEditorViewModel = LevelEditorViewModel(level: level)
+        screen = .levelEditor
+    }
+    
+    func exitLevelEditor() {
+        levelEditorViewModel = nil
+        let destination = screenBeforeLevelEditor ?? .mainMenu
+        screenBeforeLevelEditor = nil
+        screen = destination
     }
     
     func showLevelSelect() {
