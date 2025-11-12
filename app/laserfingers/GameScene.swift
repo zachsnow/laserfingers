@@ -263,7 +263,7 @@ final class LaserGameScene: SKScene {
             let location = touch.location(in: self)
             let node = makeFingerSprite(at: location)
             addChild(node)
-            let data = FingerSprite(node: node, lastZapTime: 0)
+            let data = FingerSprite(node: node, lastZapTime: 0, previousPosition: location)
             data.node.alpha = 0.0
             data.node.run(SKAction.fadeAlpha(to: 1.0, duration: 0.1))
             fingerSprites[touch] = data
@@ -276,8 +276,10 @@ final class LaserGameScene: SKScene {
         for touch in touches {
             guard let sprite = fingerSprites[touch] else { continue }
             let location = touch.location(in: self)
+            var updated = sprite
+            updated.previousPosition = sprite.node.position
             sprite.node.position = location
-            fingerSprites[touch] = sprite
+            fingerSprites[touch] = updated
         }
     }
     
@@ -304,8 +306,7 @@ final class LaserGameScene: SKScene {
     }
     
     private func makeFingerSprite(at point: CGPoint) -> SKShapeNode {
-        let radius: CGFloat = 22
-        let node = SKShapeNode(circleOfRadius: radius)
+        let node = SKShapeNode(circleOfRadius: FingerSprite.fingerRadius)
         node.fillColor = SKColor.white.withAlphaComponent(0.25)
         node.strokeColor = SKColor.white.withAlphaComponent(0.45)
         node.lineWidth = 2
@@ -387,7 +388,7 @@ final class LaserGameScene: SKScene {
         }
     }
     
-    private func evaluateWinCondition() {
+private func evaluateWinCondition() {
         guard session.status == .running else { return }
         let requiredButtons = buttonStates.filter { $0.spec.required }
         let trackedButtons = requiredButtons.isEmpty ? buttonStates : requiredButtons
@@ -395,13 +396,23 @@ final class LaserGameScene: SKScene {
         if trackedButtons.allSatisfy({ $0.isFullyCharged }) {
             completeLevel()
         }
-    }
-    
-    private func checkLaserHits(currentTime: TimeInterval) {
-        for (touch, sprite) in fingerSprites {
-            guard currentTime - sprite.lastZapTime > zapCooldown else { continue }
-            let position = sprite.node.position
-            if laserStates.contains(where: { $0.node.isDangerous(at: position, in: self) }) {
+}
+
+private func checkLaserHits(currentTime: TimeInterval) {
+        guard !laserStates.isEmpty else { return }
+        let laserPolygons = laserStates.map { $0.node.collisionPolygons(in: self) }.flatMap { $0 }
+        guard !laserPolygons.isEmpty else { return }
+        for touch in Array(fingerSprites.keys) {
+            guard var sprite = fingerSprites[touch] else { continue }
+            if currentTime - sprite.lastZapTime <= zapCooldown {
+                sprite.previousPosition = sprite.node.position
+                fingerSprites[touch] = sprite
+                continue
+            }
+            let capsule = Capsule(a: sprite.previousPosition, b: sprite.node.position, radius: FingerSprite.fingerRadius)
+            sprite.previousPosition = sprite.node.position
+            fingerSprites[touch] = sprite
+            if capsule.intersectsAny(laserPolygons) {
                 registerZap(for: touch, currentTime: currentTime)
             }
         }
@@ -424,6 +435,7 @@ final class LaserGameScene: SKScene {
     private func registerZap(for touch: UITouch, currentTime: TimeInterval) {
         guard var sprite = fingerSprites[touch] else { return }
         sprite.lastZapTime = currentTime
+        sprite.previousPosition = sprite.node.position
         fingerSprites[touch] = sprite
         
         let flash = SKAction.sequence([
@@ -480,12 +492,14 @@ private protocol LaserObstacle: AnyObject {
     func startMotion()
     func setFiring(active: Bool)
     func updateLayout(using transform: NormalizedLayoutTransform)
+    func collisionPolygons(in scene: SKScene) -> [Polygon]
 }
 
 extension LaserObstacle {
     func startMotion() {}
     func setFiring(active: Bool) {}
     func updateLayout(using transform: NormalizedLayoutTransform) {}
+    func collisionPolygons(in scene: SKScene) -> [Polygon] { [] }
 }
 
 private class BaseLaserNode: SKNode, LaserObstacle {
@@ -577,6 +591,19 @@ private class BaseLaserNode: SKNode, LaserObstacle {
         let filter = CIFilter(name: "CIGaussianBlur")
         filter?.setValue(radius, forKey: kCIInputRadiusKey)
         bloomNode.filter = filter
+    }
+    
+    func collisionPolygons(in scene: SKScene) -> [Polygon] {
+        guard isLaserActive, let path = beam.path else { return [] }
+        let rect = path.boundingBoxOfPath
+        let localPoints = [
+            CGPoint(x: rect.minX, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.maxY),
+            CGPoint(x: rect.minX, y: rect.maxY)
+        ]
+        let worldPoints = localPoints.map { beam.convert($0, to: scene) }
+        return [Polygon(points: worldPoints)]
     }
 }
 
@@ -791,8 +818,10 @@ final class MenuBackgroundScene: SKScene {
 // MARK: - Helpers
 
 private struct FingerSprite {
+    static let fingerRadius: CGFloat = 22
     let node: SKShapeNode
     var lastZapTime: TimeInterval
+    var previousPosition: CGPoint
 }
 
 private struct ButtonRuntime {
@@ -1572,5 +1601,121 @@ private final class SegmentLaserNode: BaseLaserNode {
 private extension Comparable {
     func clamped(to range: ClosedRange<Self>) -> Self {
         min(max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+private extension CGPoint {
+    func distance(to other: CGPoint) -> CGFloat {
+        hypot(other.x - x, other.y - y)
+    }
+    
+    func interpolated(to other: CGPoint, t: CGFloat) -> CGPoint {
+        CGPoint(x: x + (other.x - x) * t, y: y + (other.y - y) * t)
+    }
+}
+
+private struct Capsule {
+    let a: CGPoint
+    let b: CGPoint
+    let radius: CGFloat
+    
+    func intersectsAny(_ polygons: [Polygon]) -> Bool {
+        polygons.contains { intersects($0) }
+    }
+    
+    private func intersects(_ polygon: Polygon) -> Bool {
+        let mid = CGPoint(x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5)
+        if polygon.contains(a) || polygon.contains(b) || polygon.contains(mid) {
+            return true
+        }
+        let radiusSquared = radius * radius
+        for edge in polygon.edges {
+            if segmentDistanceSquared(a, b, edge.0, edge.1) <= radiusSquared {
+                return true
+            }
+        }
+        for vertex in polygon.points {
+            if distancePointToSegmentSquared(vertex, a, b) <= radiusSquared {
+                return true
+            }
+        }
+        return false
+    }
+    
+    private func segmentDistanceSquared(_ a1: CGPoint, _ a2: CGPoint, _ b1: CGPoint, _ b2: CGPoint) -> CGFloat {
+        if segmentsIntersect(a1, a2, b1, b2) { return 0 }
+        return min(
+            distancePointToSegmentSquared(a1, b1, b2),
+            distancePointToSegmentSquared(a2, b1, b2),
+            distancePointToSegmentSquared(b1, a1, a2),
+            distancePointToSegmentSquared(b2, a1, a2)
+        )
+    }
+    
+    private func segmentsIntersect(_ p1: CGPoint, _ p2: CGPoint, _ q1: CGPoint, _ q2: CGPoint) -> Bool {
+        let o1 = orientation(p1, p2, q1)
+        let o2 = orientation(p1, p2, q2)
+        let o3 = orientation(q1, q2, p1)
+        let o4 = orientation(q1, q2, p2)
+        if o1 != o2 && o3 != o4 { return true }
+        if o1 == 0 && onSegment(p1, q1, p2) { return true }
+        if o2 == 0 && onSegment(p1, q2, p2) { return true }
+        if o3 == 0 && onSegment(q1, p1, q2) { return true }
+        if o4 == 0 && onSegment(q1, p2, q2) { return true }
+        return false
+    }
+    
+    private func orientation(_ p: CGPoint, _ q: CGPoint, _ r: CGPoint) -> Int {
+        let val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
+        if abs(val) < .ulpOfOne { return 0 }
+        return val > 0 ? 1 : 2
+    }
+    
+    private func onSegment(_ p: CGPoint, _ q: CGPoint, _ r: CGPoint) -> Bool {
+        q.x <= max(p.x, r.x) + .ulpOfOne && q.x + .ulpOfOne >= min(p.x, r.x) &&
+        q.y <= max(p.y, r.y) + .ulpOfOne && q.y + .ulpOfOne >= min(p.y, r.y)
+    }
+    
+    private func distancePointToSegmentSquared(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        if a == b { return point.distance(to: a) * point.distance(to: a) }
+        let ab = CGPoint(x: b.x - a.x, y: b.y - a.y)
+        let ap = CGPoint(x: point.x - a.x, y: point.y - a.y)
+        let abLengthSquared = ab.x * ab.x + ab.y * ab.y
+        let t = max(0, min(1, (ap.x * ab.x + ap.y * ab.y) / abLengthSquared))
+        let projection = CGPoint(x: a.x + ab.x * t, y: a.y + ab.y * t)
+        let dx = point.x - projection.x
+        let dy = point.y - projection.y
+        return dx * dx + dy * dy
+    }
+}
+
+private struct Polygon {
+    let points: [CGPoint]
+    
+    var edges: [(CGPoint, CGPoint)] {
+        guard points.count > 1 else { return [] }
+        var result: [(CGPoint, CGPoint)] = []
+        for index in points.indices {
+            let next = (index + 1) % points.count
+            result.append((points[index], points[next]))
+        }
+        return result
+    }
+    
+    func contains(_ point: CGPoint) -> Bool {
+        guard points.count >= 3 else { return false }
+        var inside = false
+        var j = points.count - 1
+        for i in 0..<points.count {
+            let pi = points[i]
+            let pj = points[j]
+            let intersects = ((pi.y > point.y) != (pj.y > point.y)) &&
+            (point.x < (pj.x - pi.x) * (point.y - pi.y) / (pj.y - pi.y + .ulpOfOne) + pi.x)
+            if intersects {
+                inside.toggle()
+            }
+            j = i
+        }
+        return inside
     }
 }

@@ -1,0 +1,65 @@
+{
+  "id": "login-crossed-01",
+  "title": "Cross Check",
+  "description": "Keep the center node alive while opposite beams sweep.",
+  "maxTouches": 2,
+  "buttons": [
+    {
+      "id": "center-lock",
+      "position": { "x": 0.0, "y": 0.0 },
+      "timing": {
+        "chargeSeconds": 1.6,
+        "holdSeconds": 0.2,
+        "drainSeconds": 1.2
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#FFD166",
+        "glow": "#FFE29A",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "center-hit",
+          "shape": {
+            "type": "circle",
+            "radius": 0.28
+          },
+          "offset": { "x": 0.0, "y": 0.0 }
+        }
+      ],
+      "effects": []
+    }
+  ],
+  "lasers": [
+    {
+      "id": "green-sweeper",
+      "color": "#2AD863",
+      "thickness": 0.018,
+      "kind": {
+        "type": "sweeper",
+        "sweeper": {
+          "start": { "x": -1.0, "y": 0.0 },
+          "end": { "x": 1.0, "y": 0.0 },
+          "sweepSeconds": 2.2
+        }
+      }
+    },
+    {
+      "id": "blue-sweeper",
+      "color": "#4CC9F0",
+      "thickness": 0.018,
+      "kind": {
+        "type": "sweeper",
+        "sweeper": {
+          "start": { "x": 1.0, "y": 0.0 },
+          "end": { "x": -1.0, "y": 0.0 },
+          "sweepSeconds": 2.2
+        }
+      }
+    }
+  ],
+  "backgroundImage": "../../Images/bg.jpg",
+  "unlocks": []
+}
