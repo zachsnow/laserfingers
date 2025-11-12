@@ -169,12 +169,15 @@ final class LaserGameScene: SKScene {
         case .cancelled:
             alertOverlay.color = SKColor.white
             targetAlpha = 0.25
+            triggerHaptics(.warning)
         case .zap:
             alertOverlay.color = SKColor(red: 1, green: 0.8, blue: 0.1, alpha: 1)
             targetAlpha = 0.45
+            triggerHaptics(.zap)
         case .exhausted:
             alertOverlay.color = SKColor(red: 1, green: 0, blue: 0.05, alpha: 1)
             targetAlpha = 0.75
+            triggerHaptics(.death)
         }
         let fadeIn = SKAction.fadeAlpha(to: targetAlpha, duration: 0.05)
         let fadeOut = SKAction.fadeAlpha(to: 0, duration: 0.35)
@@ -358,6 +361,7 @@ final class LaserGameScene: SKScene {
             runtime.node.updateChargeDisplay(runtime.charge)
             if turnedOn {
                 runEffects(for: runtime.spec, trigger: .turnedOn)
+                triggerHaptics(.success)
             }
             if turnedOff {
                 runEffects(for: runtime.spec, trigger: .turnedOff)
@@ -429,10 +433,6 @@ final class LaserGameScene: SKScene {
         ])
         sprite.node.run(flash)
         
-        if settings.hapticsEnabled {
-            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-        }
-        
         if session.registerZap() {
             flashAlert(.exhausted)
             failLevel()
@@ -458,6 +458,11 @@ final class LaserGameScene: SKScene {
             SKAction.colorize(withColorBlendFactor: 0, duration: 0.2)
         ])
         run(flash)
+    }
+    
+    private func triggerHaptics(_ event: HapticEvent) {
+        guard settings.hapticsEnabled else { return }
+        Haptics.shared.play(event)
     }
 }
 
