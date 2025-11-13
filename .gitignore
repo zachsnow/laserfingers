@@ -4,3 +4,5 @@ DerivedData/
 **/.DS_Store
 **/build/
 *~
+.module-cache
+.swift-module-cache
