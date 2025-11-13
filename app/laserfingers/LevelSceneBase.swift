@@ -681,10 +681,11 @@ final class ButtonNode: SKNode {
             if visual.hitPath.contains(local) {
                 return visual.spec
             }
-            if radius > 0,
-               let stroked = visual.hitPath.copy(strokingWithWidth: radius * 2, lineCap: .round, lineJoin: .round, miterLimit: 1),
-               stroked.contains(local) {
-                return visual.spec
+            if radius > 0 {
+                let stroked = visual.hitPath.copy(strokingWithWidth: radius * 2, lineCap: .round, lineJoin: .round, miterLimit: 1)
+                if stroked.contains(local) {
+                    return visual.spec
+                }
             }
         }
         return nil
