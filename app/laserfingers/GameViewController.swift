@@ -122,10 +122,64 @@ struct SettingsView: View {
                     .toggleStyle(SwitchToggleStyle(tint: .pink))
                 Toggle("Advanced Mode", isOn: $coordinator.settings.advancedModeEnabled)
                     .toggleStyle(SwitchToggleStyle(tint: .pink))
+                Divider()
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Visual Effects")
+                        .font(.headline)
+                    VisualEffectsToggleList(
+                        glowEnabled: $coordinator.settings.glowEnabled,
+                        blurEnabled: $coordinator.settings.blurEnabled,
+                        afterimageEnabled: $coordinator.settings.afterimageEnabled
+                    )
+                }
                 Spacer()
                 LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
             .padding(menuContentPadding)
+        }
+    }
+}
+
+struct VisualEffectsToggleList: View {
+    @Binding var glowEnabled: Bool
+    @Binding var blurEnabled: Bool
+    @Binding var afterimageEnabled: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Toggle("Laser Glow", isOn: $glowEnabled)
+                .toggleStyle(SwitchToggleStyle(tint: .pink))
+            Toggle("Bloom Blur", isOn: $blurEnabled)
+                .toggleStyle(SwitchToggleStyle(tint: .pink))
+            Toggle("Afterimages", isOn: $afterimageEnabled)
+                .toggleStyle(SwitchToggleStyle(tint: .pink))
+        }
+    }
+}
+
+struct GameplayVisualSettingsSheet: View {
+    @Binding var glowEnabled: Bool
+    @Binding var blurEnabled: Bool
+    @Binding var afterimageEnabled: Bool
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Visual Effects") {
+                    VisualEffectsToggleList(
+                        glowEnabled: $glowEnabled,
+                        blurEnabled: $blurEnabled,
+                        afterimageEnabled: $afterimageEnabled
+                    )
+                }
+            }
+            .navigationTitle("Visual Effects")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
     }
 }
@@ -440,6 +494,7 @@ struct GameplayView: View {
     @EnvironmentObject private var coordinator: AppCoordinator
     let runtime: GameRuntime
     @ObservedObject private var session: GameSession
+    @State private var showVisualSettings = false
     
     init(runtime: GameRuntime) {
         self.runtime = runtime
@@ -456,6 +511,19 @@ struct GameplayView: View {
                     GameHUDView(session: session)
                         .allowsHitTesting(false)
                     Spacer()
+                    if coordinator.settings.advancedModeEnabled {
+                        Button {
+                            showVisualSettings = true
+                        } label: {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.title2)
+                                .padding(10)
+                                .background(Color.black.opacity(0.35))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.trailing, 6)
+                    }
                     PauseButton(isEnabled: session.status == .running) {
                         coordinator.pauseGame()
                     }
@@ -465,6 +533,17 @@ struct GameplayView: View {
             }
             overlayView
         }
+        .sheet(isPresented: $showVisualSettings) {
+            GameplayVisualSettingsSheet(
+                glowEnabled: $coordinator.settings.glowEnabled,
+                blurEnabled: $coordinator.settings.blurEnabled,
+                afterimageEnabled: $coordinator.settings.afterimageEnabled
+            )
+        }
+        .onAppear(perform: applyVisualSettings)
+        .onChange(of: coordinator.settings.glowEnabled) { _ in applyVisualSettings() }
+        .onChange(of: coordinator.settings.blurEnabled) { _ in applyVisualSettings() }
+        .onChange(of: coordinator.settings.afterimageEnabled) { _ in applyVisualSettings() }
     }
     
     @ViewBuilder
@@ -513,6 +592,10 @@ struct GameplayView: View {
     
     private var hasNextLevel: Bool {
         coordinator.nextLevel(after: runtime.level) != nil
+    }
+    
+    private func applyVisualSettings() {
+        runtime.scene.applyVisualSettings(coordinator.settings)
     }
 }
 

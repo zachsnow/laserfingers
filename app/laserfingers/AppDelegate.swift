@@ -95,7 +95,7 @@ final class AppCoordinator: ObservableObject {
     func openLevelEditor(with level: Level?) {
         guard settings.advancedModeEnabled else { return }
         screenBeforeLevelEditor = screen
-        levelEditorViewModel = LevelEditorViewModel(level: level)
+        levelEditorViewModel = LevelEditorViewModel(level: level, settings: settings)
         screen = .levelEditor
     }
     

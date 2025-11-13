@@ -5,6 +5,9 @@ struct GameSettings: Codable {
     var hapticsEnabled: Bool = true
     var advancedModeEnabled: Bool = false
     var infiniteSlotsEnabled: Bool = false
+    var glowEnabled: Bool = true
+    var blurEnabled: Bool = true
+    var afterimageEnabled: Bool = true
 }
 
 final class ProgressStore {
