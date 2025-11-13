@@ -9,47 +9,38 @@ LOG_FILE="$ROOT_DIR/deploy.log"
 
 : > "$LOG_FILE"
 
-BUILD_TIMESTAMP="$(
-python3 - <<'PY'
-import datetime
-now = datetime.datetime.now(datetime.timezone.utc)
-print(now.isoformat(timespec='milliseconds').replace('+00:00', 'Z'))
-PY
-)"
-
-export BUILD_TIMESTAMP
-
 deploy() {
   if [[ -z "${DEVICE_ID}" ]]; then
     echo "Error: DEVICE_ID not set." >&2
     return 1
   fi
 
-  mkdir -p "$DERIVED_DATA_PATH"
-
-  echo "Building Laserfingers ($CONFIGURATION) for device $DEVICE_ID with incremental settings…"
-  echo "Using build timestamp: $BUILD_TIMESTAMP"
-  xcodebuild \
-    -project "$ROOT_DIR/app/laserfingers.xcodeproj" \
-    -scheme Laserfingers \
-    -configuration "$CONFIGURATION" \
-    -destination "id=$DEVICE_ID" \
-    -derivedDataPath "$DERIVED_DATA_PATH" \
-    BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
-    -allowProvisioningUpdates \
-    build
-
   local app_path="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION-iphoneos/Laserfingers.app"
 
+  # Check if app already exists
   if [[ ! -d "$app_path" ]]; then
-    echo "Error: built app not found at $app_path" >&2
-    return 1
+    echo "No existing build found at $app_path"
+    echo "Running build.sh to create device build..."
+
+    # Run build.sh with device mode enabled
+    if ! BUILD_FOR_DEVICE=true CONFIGURATION="$CONFIGURATION" "$ROOT_DIR/build.sh"; then
+      echo "Error: build.sh failed" >&2
+      return 1
+    fi
+
+    # Verify build was created
+    if [[ ! -d "$app_path" ]]; then
+      echo "Error: Build completed but app not found at $app_path" >&2
+      return 1
+    fi
+  else
+    echo "Using existing build at $app_path"
   fi
 
   echo "Installing build to device $DEVICE_ID via devicectl…"
   echo "Deploying..."
   xcrun devicectl device install app --device "$DEVICE_ID" "$app_path"
-  echo "Deployed Laserfingers to device $DEVICE_ID using incremental build."
+  echo "Deployed Laserfingers to device $DEVICE_ID."
 }
 
 echo "Deploying..."

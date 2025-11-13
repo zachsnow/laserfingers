@@ -1174,46 +1174,63 @@ class BaseLaserNode: SKNode, LaserObstacle {
     func startAfterimageLoop() {}
     
     func updateBloomFilter(radius: CGFloat) {
-        if let filter = CIFilter(name: "CIGaussianBlur") {
-            filter.setValue(radius, forKey: kCIInputRadiusKey)
-            bloomNode.filter = filter
-        }
+        let filter = CIFilter(name: "CIGaussianBlur")
+        filter?.setValue(radius, forKey: kCIInputRadiusKey)
+        bloomNode.filter = filter
+        bloomNode.shouldCenterFilter = true
     }
     
     private func setupNodes() {
-        beam.fillColor = color
-        beam.strokeColor = color.withAlphaComponent(0.8)
-        beam.lineWidth = 0
-        beam.glowWidth = 8
-        beam.blendMode = .add
-        addChild(beam)
-        
-        glowShell.fillColor = color.withAlphaComponent(0.35)
-        glowShell.strokeColor = color.withAlphaComponent(0.2)
-        glowShell.lineWidth = 2
-        glowShell.glowWidth = 24
+        // Glow layer (behind beam)
+        glowShell.fillColor = color.withAlphaComponent(0.4)
+        glowShell.strokeColor = color.withAlphaComponent(0.18)
+        glowShell.lineWidth = 0
+        glowShell.glowWidth = 0
         glowShell.blendMode = .add
+        glowShell.zPosition = -1
         addChild(glowShell)
-        
-        bloomShape.fillColor = color.withAlphaComponent(0.3)
-        bloomShape.strokeColor = .clear
-        bloomShape.alpha = 0.5
+
+        // Bloom/blur layer (between glow and beam)
+        bloomShape.fillColor = color.withAlphaComponent(0.6)
+        bloomShape.strokeColor = color.withAlphaComponent(0.25)
+        bloomShape.lineWidth = 0
+        bloomShape.glowWidth = 0
         bloomNode.addChild(bloomShape)
-        bloomNode.zPosition = -1
         bloomNode.shouldEnableEffects = true
         bloomNode.shouldRasterize = true
+        bloomNode.shouldCenterFilter = true
         bloomNode.blendMode = .add
+        bloomNode.zPosition = -0.5  // Between glow and beam
         addChild(bloomNode)
+
+        // Main beam (on top)
+        beam.fillColor = color
+        beam.strokeColor = color.withAlphaComponent(0.85)
+        beam.lineWidth = 0
+        beam.glowWidth = 0
+        beam.blendMode = .add
+        addChild(beam)
     }
     
     private func updateGlowVisibility() {
-        glowShell.isHidden = !(firingState && glowEffectsEnabled)
+        let shouldShow = firingState && glowEffectsEnabled
+        glowShell.isHidden = !shouldShow
+        if !shouldShow {
+            glowShell.isPaused = true
+        } else {
+            glowShell.isPaused = false
+        }
     }
-    
+
     private func updateBlurVisibility() {
-        let enableEffects = firingState && blurEffectsEnabled
-        bloomNode.isHidden = !enableEffects
-        bloomNode.shouldEnableEffects = enableEffects
+        let shouldShow = firingState && blurEffectsEnabled
+        bloomNode.isHidden = !shouldShow
+        bloomNode.shouldEnableEffects = shouldShow
+        if !shouldShow {
+            bloomNode.isPaused = true
+        } else {
+            bloomNode.isPaused = false
+        }
     }
     
     var areAfterimagesEnabled: Bool {
@@ -1227,9 +1244,7 @@ final class SweepingLaserNode: BaseLaserNode {
     private var startPoint: CGPoint = .zero
     private var endPoint: CGPoint = .zero
     private var motionActive = false
-    private let persistentBlurNode = SKEffectNode()
-    private let persistentBlurShape = SKShapeNode()
-    
+
     init(spec: Level.Laser.Sweeper, thicknessScale: CGFloat, color: SKColor) {
         self.spec = spec
         self.thicknessScale = thicknessScale
@@ -1242,7 +1257,6 @@ final class SweepingLaserNode: BaseLaserNode {
         lightNode.ambientColor = color.withAlphaComponent(0.2)
         lightNode.lightColor = color.withAlphaComponent(0.95)
         lightNode.alpha = 1.0
-        setupPersistentBlur(using: color)
         startGlowShimmer()
     }
     
@@ -1267,7 +1281,7 @@ final class SweepingLaserNode: BaseLaserNode {
         let length = hypot(transform.frame.width, transform.frame.height) * 1.1
         let rect = CGRect(x: -length / 2, y: -thickness / 2, width: length, height: thickness)
         beam.path = CGPath(roundedRect: rect, cornerWidth: thickness / 2, cornerHeight: thickness / 2, transform: nil)
-        beam.glowWidth = thickness * 2.2
+        beam.glowWidth = thickness * 2.2  // This creates the blur effect!
         let glowRect = rect.insetBy(dx: -thickness, dy: -thickness)
         glowShell.path = CGPath(roundedRect: glowRect, cornerWidth: thickness * 1.3, cornerHeight: thickness * 1.3, transform: nil)
         glowShell.lineWidth = 0
@@ -1275,7 +1289,6 @@ final class SweepingLaserNode: BaseLaserNode {
         bloomShape.position = beam.position
         let blurRadius = max(thickness * 1.5, 6)
         updateBloomFilter(radius: blurRadius)
-        updatePersistentBlurGeometry(rect: rect, thickness: thickness, blurRadius: blurRadius * 1.3)
         startPoint = transform.point(from: spec.start)
         endPoint = transform.point(from: spec.end)
         position = startPoint
@@ -1286,8 +1299,6 @@ final class SweepingLaserNode: BaseLaserNode {
         glowShell.zRotation = beam.zRotation
         bloomNode.position = beam.position
         bloomNode.zRotation = beam.zRotation
-        persistentBlurNode.position = beam.position
-        persistentBlurNode.zRotation = beam.zRotation
         lightNode.position = .zero
         if motionActive {
             restartMotion()
@@ -1307,17 +1318,13 @@ final class SweepingLaserNode: BaseLaserNode {
     }
     
     override func didActivateLaser() {
-        persistentBlurNode.isHidden = false
-        persistentBlurNode.shouldEnableEffects = true
         guard areAfterimagesEnabled else { return }
         if action(forKey: "afterimage") == nil {
             startAfterimageLoop()
         }
     }
-    
+
     override func didDeactivateLaser() {
-        persistentBlurNode.isHidden = true
-        persistentBlurNode.shouldEnableEffects = false
         removeAction(forKey: "afterimage")
     }
     
@@ -1332,20 +1339,21 @@ final class SweepingLaserNode: BaseLaserNode {
     }
     
     private func spawnAfterimage() {
-        guard let path = beam.path else { return }
+        guard let path = beam.path, let scene = scene else { return }
         let ghost = SKShapeNode(path: path)
-        ghost.position = beam.position
+        ghost.position = position
         ghost.zRotation = beam.zRotation
-        ghost.fillColor = color.withAlphaComponent(0.35)
-        ghost.strokeColor = color.withAlphaComponent(0.45)
-        ghost.glowWidth = beam.glowWidth * 0.7
-        ghost.lineWidth = beam.lineWidth
-        ghost.zPosition = beam.zPosition - 1
-        addChild(ghost)
+        ghost.fillColor = color.withAlphaComponent(0.2)
+        ghost.strokeColor = .clear
+        ghost.glowWidth = 0
+        ghost.lineWidth = 0
+        ghost.blendMode = .add
+        ghost.zPosition = zPosition - 0.1
+        scene.addChild(ghost)
         ghost.run(SKAction.sequence([
             SKAction.group([
-                SKAction.fadeOut(withDuration: 0.5),
-                SKAction.scale(by: 1.03, duration: 0.5)
+                SKAction.fadeOut(withDuration: 0.6),
+                SKAction.scale(by: 1.04, duration: 0.6)
             ]),
             SKAction.removeFromParent()
         ]))
@@ -1375,37 +1383,6 @@ final class SweepingLaserNode: BaseLaserNode {
         lightNode.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.repeatForever(lightSequence)]), withKey: "lightShimmer")
     }
     
-    private func setupPersistentBlur(using color: SKColor) {
-        persistentBlurShape.fillColor = color.withAlphaComponent(0.8)
-        persistentBlurShape.strokeColor = .clear
-        persistentBlurShape.alpha = 1.0
-        persistentBlurShape.blendMode = .add
-        persistentBlurNode.addChild(persistentBlurShape)
-        persistentBlurNode.zPosition = -0.5
-        persistentBlurNode.blendMode = .add
-        persistentBlurNode.shouldRasterize = true
-        persistentBlurNode.shouldEnableEffects = true
-        persistentBlurNode.shouldCenterFilter = true
-        if let filter = CIFilter(name: "CIGaussianBlur") {
-            filter.setValue(48, forKey: kCIInputRadiusKey)
-            persistentBlurNode.filter = filter
-        }
-        addChild(persistentBlurNode)
-    }
-    
-    private func updatePersistentBlurGeometry(rect: CGRect, thickness: CGFloat, blurRadius: CGFloat) {
-        let expanded = rect.insetBy(dx: -thickness * 3, dy: -thickness * 3)
-        let corner = max(thickness * 2.5, 8)
-        persistentBlurShape.path = CGPath(roundedRect: expanded, cornerWidth: corner, cornerHeight: corner, transform: nil)
-        persistentBlurShape.alpha = 1.0
-        if let filter = persistentBlurNode.filter {
-            filter.setValue(max(blurRadius * 2.5, 36), forKey: kCIInputRadiusKey)
-        } else if let filter = CIFilter(name: "CIGaussianBlur") {
-            filter.setValue(max(blurRadius * 2.5, 36), forKey: kCIInputRadiusKey)
-            persistentBlurNode.filter = filter
-            persistentBlurNode.shouldCenterFilter = true
-        }
-    }
 }
 
 final class RotatingLaserNode: BaseLaserNode {
@@ -1446,7 +1423,7 @@ final class RotatingLaserNode: BaseLaserNode {
         let rect = CGRect(x: -thickness / 2, y: -armLength / 2, width: thickness, height: armLength)
         beam.path = CGPath(roundedRect: rect, cornerWidth: thickness / 2, cornerHeight: thickness / 2, transform: nil)
         beam.position = .zero
-        beam.glowWidth = thickness * 2.1
+        beam.glowWidth = thickness * 2.1  // This creates the blur effect!
         let glowRect = rect.insetBy(dx: -thickness * 0.9, dy: -thickness * 0.9)
         glowShell.path = CGPath(roundedRect: glowRect, cornerWidth: thickness * 1.25, cornerHeight: thickness * 1.25, transform: nil)
         glowShell.lineWidth = 0
@@ -1480,11 +1457,42 @@ final class RotatingLaserNode: BaseLaserNode {
             startAfterimageLoop()
         }
     }
-    
+
     override func didDeactivateLaser() {
         removeAction(forKey: "afterimage")
     }
-    
+
+    override func startAfterimageLoop() {
+        guard areAfterimagesEnabled else { return }
+        removeAction(forKey: "afterimage")
+        let wait = SKAction.wait(forDuration: 0.1)
+        let spawn = SKAction.run { [weak self] in
+            self?.spawnAfterimage()
+        }
+        run(SKAction.repeatForever(SKAction.sequence([spawn, wait])), withKey: "afterimage")
+    }
+
+    private func spawnAfterimage() {
+        guard let path = beam.path, let scene = scene else { return }
+        let ghost = SKShapeNode(path: path)
+        ghost.position = position
+        ghost.zRotation = zRotation
+        ghost.fillColor = color.withAlphaComponent(0.18)
+        ghost.strokeColor = .clear
+        ghost.glowWidth = 0
+        ghost.lineWidth = 0
+        ghost.blendMode = .add
+        ghost.zPosition = zPosition - 0.1
+        scene.addChild(ghost)
+        ghost.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.fadeOut(withDuration: 0.7),
+                SKAction.scale(by: 1.05, duration: 0.7)
+            ]),
+            SKAction.removeFromParent()
+        ]))
+    }
+
     private func startGlowShimmer() {
         glowShell.removeAction(forKey: "rotorGlow")
         let duration = Double.random(in: 0.9...1.3)
