@@ -30,5 +30,6 @@ if xcodebuild \
   echo "Build succeeded."
 else
   echo "Build failed." >&2
+  grep "error:" build.log
   exit 1
 fi

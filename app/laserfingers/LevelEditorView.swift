@@ -199,12 +199,30 @@ private struct LevelSettingsSheet: View {
         NavigationStack {
             Form {
                 Section("Identifiers") {
-                    TextField("Level ID", text: $levelID)
-                    TextField("Title", text: $title)
+                    EditorTextFieldRow(
+                        title: "Level ID",
+                        placeholder: "level-id",
+                        text: $levelID,
+                        autocapitalization: .never,
+                        disableAutocorrection: true
+                    )
+                    EditorTextFieldRow(
+                        title: "Title",
+                        placeholder: "Untitled Level",
+                        text: $title,
+                        autocapitalization: .words
+                    )
                 }
                 Section("Description") {
-                    TextField("Description", text: $description, axis: .vertical)
-                        .lineLimit(3, reservesSpace: true)
+                    EditorTextFieldRow(
+                        title: "Description",
+                        placeholder: "Describe the level",
+                        text: $description,
+                        axis: .vertical,
+                        lineLimit: 3,
+                        autocapitalization: .sentences,
+                        textAlignment: .leading
+                    )
                 }
             }
             .navigationTitle("Level Settings")
@@ -227,41 +245,24 @@ private struct LevelSettingsSheet: View {
 private struct EditorOptionsSheet: View {
     @ObservedObject var viewModel: LevelEditorViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var snapIntervalString: String
-    
-    init(viewModel: LevelEditorViewModel) {
-        self.viewModel = viewModel
-        _snapIntervalString = State(initialValue: Self.formatInterval(viewModel.options.snapInterval))
-    }
     
     var body: some View {
         NavigationStack {
             Form {
                 Section("Snapping") {
-                    HStack {
-                        Text("Interval")
-                        Spacer()
-                        Stepper(value: Binding(
-                            get: { viewModel.options.snapInterval },
-                            set: { updateSnapInterval($0) }
-                        ), in: 0.01...0.5, step: 0.01) {
-                            EmptyView()
-                        }
-                        .labelsHidden()
-                        TextField(
-                            "0.10",
-                            text: Binding(
-                                get: { snapIntervalString },
-                                set: { updateSnapInterval(from: $0) }
-                            )
-                        )
-                        .keyboardType(.decimalPad)
-                        .frame(width: 60)
-                        Toggle("Snap enabled", isOn: Binding(
+                    EditorNumberFieldRow(
+                        title: "Interval",
+                        placeholder: "0.10",
+                        value: snapIntervalBinding,
+                        format: .number.precision(.fractionLength(2))
+                    )
+                    EditorToggleRow(
+                        title: "Snap Enabled",
+                        isOn: Binding(
                             get: { viewModel.options.snapEnabled },
                             set: { viewModel.setSnapEnabled($0) }
-                        ))
-                    }
+                        )
+                    )
                 }
             }
             .navigationTitle("Editor Options")
@@ -273,21 +274,18 @@ private struct EditorOptionsSheet: View {
         }
     }
     
-    private func updateSnapInterval(_ value: CGFloat) {
-        let clamped = max(0.01, min(0.5, value))
-        snapIntervalString = Self.formatInterval(clamped)
-        viewModel.setSnapInterval(clamped)
+    private var snapIntervalBinding: Binding<Double> {
+        Binding(
+            get: { Double(viewModel.options.snapInterval) },
+            set: { newValue in
+                let clamped = Self.clampInterval(newValue)
+                viewModel.setSnapInterval(CGFloat(clamped))
+            }
+        )
     }
     
-    private func updateSnapInterval(from text: String) {
-        snapIntervalString = text
-        if let value = Double(text) {
-            updateSnapInterval(CGFloat(value))
-        }
-    }
-    
-    private static func formatInterval(_ value: CGFloat) -> String {
-        String(format: "%.2f", value)
+    private static func clampInterval(_ value: Double) -> Double {
+        min(0.5, max(0.01, value))
     }
 }
 
@@ -422,22 +420,46 @@ private struct ObjectSettingsSheet: View {
     
     @ViewBuilder
     private func buttonForm(_ state: Binding<LevelEditorViewModel.ButtonSettingsState>) -> some View {
+        let holdSecondsBinding = Binding<Double?>(
+            get: { state.holdSecondsEnabled.wrappedValue ? state.holdSeconds.wrappedValue : nil },
+            set: { newValue in
+                state.holdSecondsEnabled.wrappedValue = newValue != nil
+                if let newValue {
+                    state.holdSeconds.wrappedValue = newValue
+                }
+            }
+        )
         Form {
             Section("Button") {
-                TextField("Identifier", text: state.buttonID)
-                TextField("Fill Color (hex)", text: state.fillColor)
-                Toggle("Required", isOn: state.required)
+                EditorTextFieldRow(
+                    title: "Identifier",
+                    placeholder: "button-id",
+                    text: state.buttonID,
+                    autocapitalization: .never,
+                    disableAutocorrection: true
+                )
+                EditorColorPickerRow(title: "Fill Color", hexValue: state.fillColor)
+                EditorToggleRow(title: "Required", isOn: state.required)
             }
             Section("Timing") {
-                TextField("Charge Seconds", value: state.chargeSeconds, format: .number.precision(.fractionLength(2)))
-                    .keyboardType(.decimalPad)
-                Toggle("Hold Enabled", isOn: state.holdSecondsEnabled)
-                if state.holdSecondsEnabled.wrappedValue {
-                    TextField("Hold Seconds", value: state.holdSeconds, format: .number.precision(.fractionLength(2)))
-                        .keyboardType(.decimalPad)
-                }
-                TextField("Drain Seconds", value: state.drainSeconds, format: .number.precision(.fractionLength(2)))
-                    .keyboardType(.decimalPad)
+                EditorNumberFieldRow(
+                    title: "Charge Seconds",
+                    placeholder: "0.00",
+                    value: state.chargeSeconds,
+                    format: .number.precision(.fractionLength(2))
+                )
+                EditorNullableNumberRow(
+                    title: "Hold Seconds",
+                    value: holdSecondsBinding,
+                    defaultValue: state.holdSeconds.wrappedValue,
+                    format: .number.precision(.fractionLength(2))
+                )
+                EditorNumberFieldRow(
+                    title: "Drain Seconds",
+                    placeholder: "0.00",
+                    value: state.drainSeconds,
+                    format: .number.precision(.fractionLength(2))
+                )
             }
             Section("Hit Areas") {
                 let areas = viewModel.hitAreas(for: state.buttonID.wrappedValue)
@@ -472,37 +494,48 @@ private struct ObjectSettingsSheet: View {
     private func laserForm(_ state: Binding<LevelEditorViewModel.LaserSettingsState>) -> some View {
         Form {
             Section("Laser") {
-                TextField("Identifier", text: state.laserID)
-                TextField("Color (hex)", text: state.color)
-                TextField("Thickness", value: state.thickness, format: .number.precision(.fractionLength(3)))
-                    .keyboardType(.decimalPad)
+                EditorTextFieldRow(
+                    title: "Identifier",
+                    placeholder: "laser-id",
+                    text: state.laserID,
+                    autocapitalization: .never,
+                    disableAutocorrection: true
+                )
+                EditorColorPickerRow(title: "Color", hexValue: state.color)
+                EditorNumberFieldRow(
+                    title: "Thickness",
+                    placeholder: "0.010",
+                    value: state.thickness,
+                    format: .number.precision(.fractionLength(3))
+                )
             }
-            if state.sweepSeconds.wrappedValue != nil {
+            switch state.kind.wrappedValue {
+            case .sweeper:
                 Section("Sweeper") {
-                    TextField("Sweep Seconds", value: Binding(
-                        get: { state.sweepSeconds.wrappedValue ?? 0 },
-                        set: { state.sweepSeconds.wrappedValue = $0 }
-                    ), format: .number.precision(.fractionLength(2)))
-                    .keyboardType(.decimalPad)
+                    EditorNullableNumberRow(
+                        title: "Sweep Seconds",
+                        value: state.sweepSeconds,
+                        defaultValue: state.sweepSeconds.wrappedValue ?? 1.0,
+                        format: .number.precision(.fractionLength(2))
+                    )
                 }
-            }
-            if state.speedDegreesPerSecond.wrappedValue != nil || state.initialAngleDegrees.wrappedValue != nil {
+            case .rotor:
                 Section("Rotor") {
-                    if state.speedDegreesPerSecond.wrappedValue != nil {
-                        TextField("Speed (deg/s)", value: Binding(
-                            get: { state.speedDegreesPerSecond.wrappedValue ?? 0 },
-                            set: { state.speedDegreesPerSecond.wrappedValue = $0 }
-                        ), format: .number.precision(.fractionLength(1)))
-                        .keyboardType(.decimalPad)
-                    }
-                    if state.initialAngleDegrees.wrappedValue != nil {
-                        TextField("Initial Angle", value: Binding(
-                            get: { state.initialAngleDegrees.wrappedValue ?? 0 },
-                            set: { state.initialAngleDegrees.wrappedValue = $0 }
-                        ), format: .number.precision(.fractionLength(1)))
-                        .keyboardType(.decimalPad)
-                    }
+                    EditorNullableNumberRow(
+                        title: "Speed (deg/s)",
+                        value: state.speedDegreesPerSecond,
+                        defaultValue: state.speedDegreesPerSecond.wrappedValue ?? 45,
+                        format: .number.precision(.fractionLength(1))
+                    )
+                    EditorNullableNumberRow(
+                        title: "Initial Angle",
+                        value: state.initialAngleDegrees,
+                        defaultValue: state.initialAngleDegrees.wrappedValue ?? 0,
+                        format: .number.precision(.fractionLength(1))
+                    )
                 }
+            case .segment:
+                EmptyView()
             }
             Section {
                 Button(role: .destructive) {
@@ -575,15 +608,23 @@ private struct HitAreaSettingsView: View {
         Form {
             if let binding = binding {
                 Section("Hit Area") {
-                    TextField("Identifier", text: binding.hitAreaID)
+                    EditorTextFieldRow(
+                        title: "Identifier",
+                        placeholder: "hit-area-id",
+                        text: binding.hitAreaID,
+                        autocapitalization: .never,
+                        disableAutocorrection: true
+                    )
                 }
                 Section("Shape") {
-                    Picker("Type", selection: binding.shapeType) {
+                    EditorChoiceRow(
+                        title: "Type",
+                        selection: binding.shapeType
+                    ) {
                         ForEach(LevelEditorViewModel.HitAreaSettingsState.ShapeType.allCases) { type in
                             Text(type.displayName).tag(type)
                         }
                     }
-                    .pickerStyle(.segmented)
                     .onChange(of: binding.shapeType.wrappedValue) { newValue in
                         updateShapeDefaults(to: newValue)
                     }
@@ -669,20 +710,44 @@ private struct HitAreaSettingsView: View {
     private func shapeInputs(for type: LevelEditorViewModel.HitAreaSettingsState.ShapeType, binding: Binding<LevelEditorViewModel.HitAreaSettingsState>) -> some View {
         switch type {
         case .circle:
-            TextField("Radius", value: binding.circleRadius, format: .number.precision(.fractionLength(2)))
-                .keyboardType(.decimalPad)
+            EditorNumberFieldRow(
+                title: "Radius",
+                placeholder: "0.20",
+                value: binding.circleRadius,
+                format: .number.precision(.fractionLength(2))
+            )
         case .rectangle:
-            TextField("Width", value: binding.rectWidth, format: .number.precision(.fractionLength(2)))
-                .keyboardType(.decimalPad)
-            TextField("Height", value: binding.rectHeight, format: .number.precision(.fractionLength(2)))
-                .keyboardType(.decimalPad)
-            TextField("Corner Radius", value: binding.rectCorner, format: .number.precision(.fractionLength(2)))
-                .keyboardType(.decimalPad)
+            EditorNumberFieldRow(
+                title: "Width",
+                placeholder: "0.40",
+                value: binding.rectWidth,
+                format: .number.precision(.fractionLength(2))
+            )
+            EditorNumberFieldRow(
+                title: "Height",
+                placeholder: "0.30",
+                value: binding.rectHeight,
+                format: .number.precision(.fractionLength(2))
+            )
+            EditorNumberFieldRow(
+                title: "Corner Radius",
+                placeholder: "0.05",
+                value: binding.rectCorner,
+                format: .number.precision(.fractionLength(2))
+            )
         case .capsule:
-            TextField("Length", value: binding.capsuleLength, format: .number.precision(.fractionLength(2)))
-                .keyboardType(.decimalPad)
-            TextField("Radius", value: binding.capsuleRadius, format: .number.precision(.fractionLength(2)))
-                .keyboardType(.decimalPad)
+            EditorNumberFieldRow(
+                title: "Length",
+                placeholder: "0.60",
+                value: binding.capsuleLength,
+                format: .number.precision(.fractionLength(2))
+            )
+            EditorNumberFieldRow(
+                title: "Radius",
+                placeholder: "0.10",
+                value: binding.capsuleRadius,
+                format: .number.precision(.fractionLength(2))
+            )
         case .polygon:
             Text("Polygon editing not yet available.")
                 .foregroundStyle(.secondary)

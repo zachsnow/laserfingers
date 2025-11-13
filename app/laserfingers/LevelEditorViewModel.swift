@@ -187,27 +187,34 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         var fillColor: String
     }
     
-struct LaserSettingsState {
-    var laserID: String
-    var color: String
-    var thickness: Double
-    var sweepSeconds: Double?
-    var speedDegreesPerSecond: Double?
-    var initialAngleDegrees: Double?
-}
+    struct LaserSettingsState {
+        enum Kind {
+            case sweeper
+            case rotor
+            case segment
+        }
+        
+        var kind: Kind
+        var laserID: String
+        var color: String
+        var thickness: Double
+        var sweepSeconds: Double?
+        var speedDegreesPerSecond: Double?
+        var initialAngleDegrees: Double?
+    }
 
     struct HitAreaSettingsState: Identifiable, Equatable {
         var id: String { hitAreaID }
         var buttonID: String
         var hitAreaID: String
         var shapeType: ShapeType
-    var circleRadius: Double
-    var rectWidth: Double
-    var rectHeight: Double
-    var rectCorner: Double
-    var capsuleLength: Double
-    var capsuleRadius: Double
-    var polygonPoints: [Level.NormalizedPoint]
+        var circleRadius: Double
+        var rectWidth: Double
+        var rectHeight: Double
+        var rectCorner: Double
+        var capsuleLength: Double
+        var capsuleRadius: Double
+        var polygonPoints: [Level.NormalizedPoint]
     
         enum ShapeType: String, CaseIterable, Identifiable {
             case circle
@@ -729,19 +736,24 @@ struct LaserSettingsState {
               let laser = workingLevel.lasers.first(where: { $0.id == laserID }) else {
             return nil
         }
+        let kind: LaserSettingsState.Kind
         var sweep: Double?
         var speed: Double?
         var angle: Double?
         switch laser.kind {
         case .sweeper(let sweeper):
+            kind = .sweeper
             sweep = Double(sweeper.sweepSeconds)
         case .rotor(let rotor):
+            kind = .rotor
             speed = Double(rotor.speedDegreesPerSecond)
             angle = Double(rotor.initialAngleDegrees)
         case .segment:
+            kind = .segment
             break
         }
         return LaserSettingsState(
+            kind: kind,
             laserID: laser.id,
             color: laser.color,
             thickness: Double(laser.thickness),

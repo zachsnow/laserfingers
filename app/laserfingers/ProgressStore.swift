@@ -8,6 +8,50 @@ struct GameSettings: Codable {
     var glowEnabled: Bool = true
     var blurEnabled: Bool = true
     var afterimageEnabled: Bool = true
+    
+    init() {}
+    
+    private enum CodingKeys: String, CodingKey {
+        case soundEnabled
+        case hapticsEnabled
+        case advancedModeEnabled
+        case infiniteSlotsEnabled
+        case glowEnabled
+        case blurEnabled
+        case afterimageEnabled
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        soundEnabled = try container.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? true
+        hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
+        advancedModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .advancedModeEnabled) ?? false
+        infiniteSlotsEnabled = try container.decodeIfPresent(Bool.self, forKey: .infiniteSlotsEnabled) ?? false
+        glowEnabled = try container.decodeIfPresent(Bool.self, forKey: .glowEnabled) ?? true
+        blurEnabled = try container.decodeIfPresent(Bool.self, forKey: .blurEnabled) ?? true
+        afterimageEnabled = try container.decodeIfPresent(Bool.self, forKey: .afterimageEnabled) ?? true
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(soundEnabled, forKey: .soundEnabled)
+        try container.encode(hapticsEnabled, forKey: .hapticsEnabled)
+        try container.encode(advancedModeEnabled, forKey: .advancedModeEnabled)
+        try container.encode(infiniteSlotsEnabled, forKey: .infiniteSlotsEnabled)
+        try container.encode(glowEnabled, forKey: .glowEnabled)
+        try container.encode(blurEnabled, forKey: .blurEnabled)
+        try container.encode(afterimageEnabled, forKey: .afterimageEnabled)
+    }
+}
+
+extension GameSettings {
+    func withAllVisualEffectsEnabled() -> GameSettings {
+        var copy = self
+        copy.glowEnabled = true
+        copy.blurEnabled = true
+        copy.afterimageEnabled = true
+        return copy
+    }
 }
 
 final class ProgressStore {

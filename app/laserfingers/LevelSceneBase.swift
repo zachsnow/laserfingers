@@ -58,7 +58,8 @@ class LevelSceneBase: SKScene {
     
     init(level: Level, settings: GameSettings) {
         self.level = level
-        self.settings = settings
+        let forcedSettings = settings.withAllVisualEffectsEnabled()
+        self.settings = forcedSettings
         super.init(size: CGSize(width: 1920, height: 1080))
         scaleMode = .resizeFill
         backgroundColor = .black
@@ -123,12 +124,13 @@ class LevelSceneBase: SKScene {
     }
     
     func applyVisualSettings(_ newSettings: GameSettings) {
-        settings = newSettings
+        let forcedSettings = newSettings.withAllVisualEffectsEnabled()
+        settings = forcedSettings
         for index in laserStates.indices {
             laserStates[index].node.configureVisualEffects(
-                glowEnabled: newSettings.glowEnabled,
-                blurEnabled: newSettings.blurEnabled,
-                afterimageEnabled: newSettings.afterimageEnabled
+                glowEnabled: forcedSettings.glowEnabled,
+                blurEnabled: forcedSettings.blurEnabled,
+                afterimageEnabled: forcedSettings.afterimageEnabled
             )
         }
     }
