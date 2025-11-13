@@ -8,7 +8,18 @@ LOG_FILE="$ROOT_DIR/build.log"
 mkdir -p "$DERIVED_DATA_PATH"
 : > "$LOG_FILE"
 
+BUILD_TIMESTAMP="$(
+python3 - <<'PY'
+import datetime
+now = datetime.datetime.now(datetime.timezone.utc)
+print(now.isoformat(timespec='milliseconds').replace('+00:00', 'Z'))
+PY
+)"
+
+export BUILD_TIMESTAMP
+
 echo "Building..."
+echo "Using build timestamp: $BUILD_TIMESTAMP" | tee -a "$LOG_FILE"
 
 SDK="iphonesimulator"
 DESTINATION="generic/platform=iOS Simulator"
@@ -25,6 +36,7 @@ if xcodebuild \
   -sdk "$SDK" \
   -destination "$DESTINATION" \
   -derivedDataPath "$DERIVED_DATA_PATH" \
+  BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
   CODE_SIGNING_ALLOWED=NO \
   build >>"$LOG_FILE" 2>&1; then
   echo "Build succeeded."

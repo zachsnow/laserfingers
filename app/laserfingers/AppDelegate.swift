@@ -406,12 +406,7 @@ struct LevelProgress: Identifiable {
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             let rawValue = try container.decode(String.self)
-            switch rawValue {
-            case "current", "incomplete":
-                self = .unlocked
-            default:
-                self = State(rawValue: rawValue) ?? .locked
-            }
+            self = State(rawValue: rawValue) ?? .locked
         }
         
         func encode(to encoder: Encoder) throws {

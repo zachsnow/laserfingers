@@ -625,8 +625,8 @@ private struct HitAreaSettingsView: View {
                             Text(type.displayName).tag(type)
                         }
                     }
-                    .onChange(of: binding.shapeType.wrappedValue) { newValue in
-                        updateShapeDefaults(to: newValue)
+                    .onChange(of: binding.shapeType.wrappedValue) {
+                        updateShapeDefaults(to: binding.shapeType.wrappedValue)
                     }
                     shapeInputs(for: binding.shapeType.wrappedValue, binding: binding)
                 }

@@ -218,9 +218,9 @@ private struct EditorNullableValueRow<Value: Equatable, Field: View>: View {
                     .labelsHidden()
             }
         }
-        .onChange(of: value) { newValue in
-            if let newValue {
-                cachedValue = newValue
+        .onChange(of: value) {
+            if let currentValue = value {
+                cachedValue = currentValue
             }
         }
     }

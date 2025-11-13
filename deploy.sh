@@ -9,6 +9,16 @@ LOG_FILE="$ROOT_DIR/deploy.log"
 
 : > "$LOG_FILE"
 
+BUILD_TIMESTAMP="$(
+python3 - <<'PY'
+import datetime
+now = datetime.datetime.now(datetime.timezone.utc)
+print(now.isoformat(timespec='milliseconds').replace('+00:00', 'Z'))
+PY
+)"
+
+export BUILD_TIMESTAMP
+
 deploy() {
   if [[ -z "${DEVICE_ID}" ]]; then
     echo "Error: DEVICE_ID not set." >&2
@@ -18,12 +28,14 @@ deploy() {
   mkdir -p "$DERIVED_DATA_PATH"
 
   echo "Building Laserfingers ($CONFIGURATION) for device $DEVICE_ID with incremental settings…"
+  echo "Using build timestamp: $BUILD_TIMESTAMP"
   xcodebuild \
     -project "$ROOT_DIR/app/laserfingers.xcodeproj" \
     -scheme Laserfingers \
     -configuration "$CONFIGURATION" \
     -destination "id=$DEVICE_ID" \
     -derivedDataPath "$DERIVED_DATA_PATH" \
+    BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
     -allowProvisioningUpdates \
     build
 

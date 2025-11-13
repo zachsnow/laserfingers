@@ -576,9 +576,9 @@ struct GameplayView: View {
             )
         }
         .onAppear(perform: applyVisualSettings)
-        .onChange(of: coordinator.settings.glowEnabled) { _ in applyVisualSettings() }
-        .onChange(of: coordinator.settings.blurEnabled) { _ in applyVisualSettings() }
-        .onChange(of: coordinator.settings.afterimageEnabled) { _ in applyVisualSettings() }
+        .onChange(of: coordinator.settings.glowEnabled) { applyVisualSettings() }
+        .onChange(of: coordinator.settings.blurEnabled) { applyVisualSettings() }
+        .onChange(of: coordinator.settings.afterimageEnabled) { applyVisualSettings() }
     }
     
     @ViewBuilder
@@ -924,12 +924,12 @@ struct LevelImportSheet: View {
                     }
                 }
                 .padding()
-                .onChange(of: statusMessage) { _ in
+                .onChange(of: statusMessage) {
                     withAnimation {
                         proxy.scrollTo("ImportStatusMessage", anchor: .bottom)
                     }
                 }
-                .onChange(of: importSuccessKey) { _ in
+                .onChange(of: importSuccessKey) {
                     if importSuccess != nil {
                         withAnimation {
                             proxy.scrollTo("ImportSuccessMessage", anchor: .bottom)

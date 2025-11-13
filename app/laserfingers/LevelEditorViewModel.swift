@@ -699,12 +699,12 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     }
     
     func applyButtonSettings(_ state: ButtonSettingsState, for selection: Selection) {
-        guard case .button(let buttonID, let originalHitAreaID) = selection,
+        guard case .button(let buttonID, _) = selection,
               let index = workingLevel.buttons.firstIndex(where: { $0.id == buttonID }) else {
             return
         }
         pushUndoState()
-        var button = workingLevel.buttons[index]
+        let button = workingLevel.buttons[index]
         let timing = Level.Button.Timing(
             chargeSeconds: CGFloat(max(0, state.chargeSeconds)),
             holdSeconds: state.holdSecondsEnabled ? CGFloat(max(0, state.holdSeconds)) : nil,

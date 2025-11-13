@@ -18,27 +18,10 @@ struct BuildInfo {
     }
     
     private static func bundleBuildDate(from bundle: Bundle) -> Date? {
-        if let timestampString = bundle.object(forInfoDictionaryKey: "BuildTimestamp") as? String,
-           let parsed = iso8601Formatter.date(from: timestampString) {
-            return parsed
+        guard let timestampString = bundle.object(forInfoDictionaryKey: "BuildTimestamp") as? String else {
+            return nil
         }
-        let candidateURLs = [
-            bundle.executableURL,
-            bundle.resourceURL,
-            bundle.bundleURL,
-            bundle.url(forResource: "Info", withExtension: "plist")
-        ].compactMap { $0 }
-        for url in candidateURLs {
-            if let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
-               date.timeIntervalSince1970 > 1 {
-                return date
-            }
-            if let date = (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate,
-               date.timeIntervalSince1970 > 1 {
-                return date
-            }
-        }
-        return nil
+        return iso8601Formatter.date(from: timestampString)
     }
     
     private static let dateFormatter: DateFormatter = {
