@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Support BUILD_FOR_DEVICE env var to build for device instead of simulator
-BUILD_FOR_DEVICE=${BUILD_FOR_DEVICE:-false}
 CONFIGURATION=${CONFIGURATION:-Debug}
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,36 +20,18 @@ PY
 
 export BUILD_TIMESTAMP
 
-echo "Building..."
+echo "Building for device..."
 echo "Using build timestamp: $BUILD_TIMESTAMP" | tee -a "$LOG_FILE"
-
-if [[ "$BUILD_FOR_DEVICE" == "true" ]]; then
-  echo "Building for device (BUILD_FOR_DEVICE=true)..." | tee -a "$LOG_FILE"
-  SDK="iphoneos"
-  DESTINATION="generic/platform=iOS"
-  CODE_SIGN_ARGS="-allowProvisioningUpdates"
-else
-  SDK="iphonesimulator"
-  DESTINATION="generic/platform=iOS Simulator"
-  CODE_SIGN_ARGS="CODE_SIGNING_ALLOWED=NO"
-
-  if ! xcrun simctl list runtimes >/dev/null 2>&1; then
-    echo "Simulator runtimes unavailable; falling back to a device build." | tee -a "$LOG_FILE"
-    SDK="iphoneos"
-    DESTINATION="generic/platform=iOS"
-    CODE_SIGN_ARGS="-allowProvisioningUpdates"
-  fi
-fi
 
 if xcodebuild \
   -project "$ROOT_DIR/app/laserfingers.xcodeproj" \
   -scheme Laserfingers \
-  -sdk "$SDK" \
-  -destination "$DESTINATION" \
+  -sdk iphoneos \
+  -destination "generic/platform=iOS" \
   -configuration "$CONFIGURATION" \
   -derivedDataPath "$DERIVED_DATA_PATH" \
   BUILD_TIMESTAMP="$BUILD_TIMESTAMP" \
-  $CODE_SIGN_ARGS \
+  -allowProvisioningUpdates \
   build >>"$LOG_FILE" 2>&1; then
   echo "Build succeeded."
 else

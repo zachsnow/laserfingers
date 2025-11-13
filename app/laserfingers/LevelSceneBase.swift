@@ -1177,15 +1177,12 @@ class BaseLaserNode: SKNode, LaserObstacle {
         let filter = CIFilter(name: "CIGaussianBlur")
         filter?.setValue(radius, forKey: kCIInputRadiusKey)
         bloomNode.filter = filter
-        bloomNode.shouldCenterFilter = true
     }
     
     private func setupNodes() {
         // Glow layer (behind beam)
         glowShell.fillColor = color.withAlphaComponent(0.4)
         glowShell.strokeColor = color.withAlphaComponent(0.18)
-        glowShell.lineWidth = 0
-        glowShell.glowWidth = 0
         glowShell.blendMode = .add
         glowShell.zPosition = -1
         addChild(glowShell)
@@ -1200,13 +1197,12 @@ class BaseLaserNode: SKNode, LaserObstacle {
         bloomNode.shouldRasterize = true
         bloomNode.shouldCenterFilter = true
         bloomNode.blendMode = .add
-        bloomNode.zPosition = -0.5  // Between glow and beam
+        bloomNode.zPosition = -0.5
         addChild(bloomNode)
 
         // Main beam (on top)
         beam.fillColor = color
         beam.strokeColor = color.withAlphaComponent(0.85)
-        beam.lineWidth = 0
         beam.glowWidth = 0
         beam.blendMode = .add
         addChild(beam)
@@ -1215,26 +1211,45 @@ class BaseLaserNode: SKNode, LaserObstacle {
     private func updateGlowVisibility() {
         let shouldShow = firingState && glowEffectsEnabled
         glowShell.isHidden = !shouldShow
-        if !shouldShow {
-            glowShell.isPaused = true
-        } else {
-            glowShell.isPaused = false
-        }
+        glowShell.isPaused = !shouldShow
     }
 
     private func updateBlurVisibility() {
         let shouldShow = firingState && blurEffectsEnabled
         bloomNode.isHidden = !shouldShow
         bloomNode.shouldEnableEffects = shouldShow
-        if !shouldShow {
-            bloomNode.isPaused = true
-        } else {
-            bloomNode.isPaused = false
-        }
+        bloomNode.isPaused = !shouldShow
     }
     
     var areAfterimagesEnabled: Bool {
         afterimageEffectsEnabled
+    }
+
+    // Helper for line-based lasers (sweepers and segments)
+    func configureLineLaser(start: CGPoint, end: CGPoint, thickness: CGFloat) {
+        let path = CGMutablePath()
+        path.move(to: start)
+        path.addLine(to: end)
+
+        beam.path = path.copy(strokingWithWidth: thickness, lineCap: .round, lineJoin: .round, miterLimit: 16)
+        beam.glowWidth = thickness * 2.2
+
+        let glowInset = thickness * 0.6
+        glowShell.path = path.copy(strokingWithWidth: thickness + glowInset, lineCap: .round, lineJoin: .round, miterLimit: 16)
+        glowShell.glowWidth = thickness * 1.5
+
+        bloomShape.path = beam.path
+        bloomShape.position = .zero
+
+        let blurRadius = max(thickness * 1.5, 6)
+        updateBloomFilter(radius: blurRadius)
+
+        bloomNode.position = .zero
+        bloomNode.zRotation = 0
+        glowShell.position = .zero
+        glowShell.zRotation = 0
+        beam.position = .zero
+        beam.zRotation = 0
     }
 }
 
@@ -1278,27 +1293,16 @@ final class SweepingLaserNode: BaseLaserNode {
     
     override func updateLayout(using transform: NormalizedLayoutTransform) {
         let thickness = max(transform.length(from: thicknessScale), 1)
-        let length = hypot(transform.frame.width, transform.frame.height) * 1.1
-        let rect = CGRect(x: -length / 2, y: -thickness / 2, width: length, height: thickness)
-        beam.path = CGPath(roundedRect: rect, cornerWidth: thickness / 2, cornerHeight: thickness / 2, transform: nil)
-        beam.glowWidth = thickness * 2.2  // This creates the blur effect!
-        let glowRect = rect.insetBy(dx: -thickness, dy: -thickness)
-        glowShell.path = CGPath(roundedRect: glowRect, cornerWidth: thickness * 1.3, cornerHeight: thickness * 1.3, transform: nil)
-        glowShell.lineWidth = 0
-        bloomShape.path = beam.path
-        bloomShape.position = beam.position
-        let blurRadius = max(thickness * 1.5, 6)
-        updateBloomFilter(radius: blurRadius)
         startPoint = transform.point(from: spec.start)
         endPoint = transform.point(from: spec.end)
+
+        configureLineLaser(start: .zero, end: CGPoint(x: 0, y: startPoint.distance(to: endPoint)), thickness: thickness)
+
         position = startPoint
         let dx = endPoint.x - startPoint.x
         let dy = endPoint.y - startPoint.y
-        beam.zRotation = atan2(dy, dx) + (.pi / 2)
-        glowShell.position = beam.position
-        glowShell.zRotation = beam.zRotation
-        bloomNode.position = beam.position
-        bloomNode.zRotation = beam.zRotation
+        zRotation = atan2(dy, dx) + (.pi / 2)
+
         lightNode.position = .zero
         if motionActive {
             restartMotion()
@@ -1420,19 +1424,9 @@ final class RotatingLaserNode: BaseLaserNode {
     override func updateLayout(using transform: NormalizedLayoutTransform) {
         let thickness = max(transform.length(from: thicknessScale), 1)
         let armLength = max(transform.frame.width, transform.frame.height) * 1.4
-        let rect = CGRect(x: -thickness / 2, y: -armLength / 2, width: thickness, height: armLength)
-        beam.path = CGPath(roundedRect: rect, cornerWidth: thickness / 2, cornerHeight: thickness / 2, transform: nil)
-        beam.position = .zero
-        beam.glowWidth = thickness * 2.1  // This creates the blur effect!
-        let glowRect = rect.insetBy(dx: -thickness * 0.9, dy: -thickness * 0.9)
-        glowShell.path = CGPath(roundedRect: glowRect, cornerWidth: thickness * 1.25, cornerHeight: thickness * 1.25, transform: nil)
-        glowShell.lineWidth = 0
-        glowShell.position = .zero
-        bloomShape.path = beam.path
-        bloomShape.position = beam.position
-        let blurRadius = max(thickness * 1.4, 6)
-        updateBloomFilter(radius: blurRadius)
-        bloomNode.position = .zero
+
+        configureLineLaser(start: CGPoint(x: 0, y: -armLength / 2), end: CGPoint(x: 0, y: armLength / 2), thickness: thickness)
+
         lightNode.position = .zero
         position = transform.point(from: spec.center)
         zRotation = CGFloat(spec.initialAngleDegrees * .pi / 180)
@@ -1541,17 +1535,11 @@ final class SegmentLaserNode: BaseLaserNode {
     
     override func updateLayout(using transform: NormalizedLayoutTransform) {
         let thickness = max(transform.length(from: thicknessScale), 1)
-        let thicknessInset = thickness * 0.6
         let start = transform.point(from: spec.start)
         let end = transform.point(from: spec.end)
-        let path = CGMutablePath()
-        path.move(to: start)
-        path.addLine(to: end)
-        beam.path = path.copy(strokingWithWidth: thickness, lineCap: .round, lineJoin: .round, miterLimit: 16)
-        glowShell.path = path.copy(strokingWithWidth: thickness + thicknessInset, lineCap: .round, lineJoin: .round, miterLimit: 16)
-        bloomShape.path = beam.path
-        let blurRadius = max(thickness, 4)
-        updateBloomFilter(radius: blurRadius)
+
+        configureLineLaser(start: start, end: end, thickness: thickness)
+
         lightNode.position = .zero
     }
     

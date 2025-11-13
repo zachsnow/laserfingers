@@ -17,28 +17,15 @@ deploy() {
 
   local app_path="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION-iphoneos/Laserfingers.app"
 
-  # Check if app already exists
+  # Check if app exists
   if [[ ! -d "$app_path" ]]; then
-    echo "No existing build found at $app_path"
-    echo "Running build.sh to create device build..."
-
-    # Run build.sh with device mode enabled
-    if ! BUILD_FOR_DEVICE=true CONFIGURATION="$CONFIGURATION" "$ROOT_DIR/build.sh"; then
-      echo "Error: build.sh failed" >&2
-      return 1
-    fi
-
-    # Verify build was created
-    if [[ ! -d "$app_path" ]]; then
-      echo "Error: Build completed but app not found at $app_path" >&2
-      return 1
-    fi
-  else
-    echo "Using existing build at $app_path"
+    echo "Error: No build found at $app_path" >&2
+    echo "Run './build.sh' first to create a build, then run deploy.sh" >&2
+    return 1
   fi
 
-  echo "Installing build to device $DEVICE_ID via devicectl…"
-  echo "Deploying..."
+  echo "Deploying build from $app_path"
+  echo "Installing to device $DEVICE_ID via devicectl…"
   xcrun devicectl device install app --device "$DEVICE_ID" "$app_path"
   echo "Deployed Laserfingers to device $DEVICE_ID."
 }
