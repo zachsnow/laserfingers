@@ -397,13 +397,13 @@ private struct ObjectSettingsSheet: View {
     
     @ViewBuilder
     private var content: some View {
-        if var buttonState = buttonState {
+        if let buttonState = buttonState {
             let binding = Binding(
                 get: { self.buttonState ?? buttonState },
                 set: { self.buttonState = $0 }
             )
             buttonForm(binding)
-        } else if var laserState = laserState {
+        } else if let laserState = laserState {
             let binding = Binding(
                 get: { self.laserState ?? laserState },
                 set: { self.laserState = $0 }

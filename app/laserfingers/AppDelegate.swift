@@ -26,7 +26,7 @@ struct LaserfingersApp: App {
 }
 
 // MARK: - Coordinator & Models
-
+ 
 final class AppCoordinator: ObservableObject {
     enum Screen {
         case mainMenu
@@ -254,6 +254,7 @@ final class AppCoordinator: ObservableObject {
         levelProgress = levels.enumerated().map { index, level in
             LevelProgress(level: level, state: index == 0 ? .unlocked : .locked)
         }
+        settings = GameSettings()
         persistProgress()
         activeGame = nil
         screen = .mainMenu

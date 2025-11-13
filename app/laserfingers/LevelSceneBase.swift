@@ -58,8 +58,7 @@ class LevelSceneBase: SKScene {
     
     init(level: Level, settings: GameSettings) {
         self.level = level
-        let forcedSettings = settings.withAllVisualEffectsEnabled()
-        self.settings = forcedSettings
+        self.settings = settings
         super.init(size: CGSize(width: 1920, height: 1080))
         scaleMode = .resizeFill
         backgroundColor = .black
@@ -124,13 +123,12 @@ class LevelSceneBase: SKScene {
     }
     
     func applyVisualSettings(_ newSettings: GameSettings) {
-        let forcedSettings = newSettings.withAllVisualEffectsEnabled()
-        settings = forcedSettings
+        settings = newSettings
         for index in laserStates.indices {
             laserStates[index].node.configureVisualEffects(
-                glowEnabled: forcedSettings.glowEnabled,
-                blurEnabled: forcedSettings.blurEnabled,
-                afterimageEnabled: forcedSettings.afterimageEnabled
+                glowEnabled: newSettings.glowEnabled,
+                blurEnabled: newSettings.blurEnabled,
+                afterimageEnabled: newSettings.afterimageEnabled
             )
         }
     }
@@ -1202,6 +1200,7 @@ class BaseLaserNode: SKNode, LaserObstacle {
         bloomShape.alpha = 0.5
         bloomNode.addChild(bloomShape)
         bloomNode.zPosition = -1
+        bloomNode.shouldEnableEffects = true
         bloomNode.shouldRasterize = true
         bloomNode.blendMode = .add
         addChild(bloomNode)
@@ -1212,7 +1211,9 @@ class BaseLaserNode: SKNode, LaserObstacle {
     }
     
     private func updateBlurVisibility() {
-        bloomNode.isHidden = !(firingState && blurEffectsEnabled)
+        let enableEffects = firingState && blurEffectsEnabled
+        bloomNode.isHidden = !enableEffects
+        bloomNode.shouldEnableEffects = enableEffects
     }
     
     var areAfterimagesEnabled: Bool {
@@ -1226,6 +1227,8 @@ final class SweepingLaserNode: BaseLaserNode {
     private var startPoint: CGPoint = .zero
     private var endPoint: CGPoint = .zero
     private var motionActive = false
+    private let persistentBlurNode = SKEffectNode()
+    private let persistentBlurShape = SKShapeNode()
     
     init(spec: Level.Laser.Sweeper, thicknessScale: CGFloat, color: SKColor) {
         self.spec = spec
@@ -1239,6 +1242,7 @@ final class SweepingLaserNode: BaseLaserNode {
         lightNode.ambientColor = color.withAlphaComponent(0.2)
         lightNode.lightColor = color.withAlphaComponent(0.95)
         lightNode.alpha = 1.0
+        setupPersistentBlur(using: color)
         startGlowShimmer()
     }
     
@@ -1271,6 +1275,7 @@ final class SweepingLaserNode: BaseLaserNode {
         bloomShape.position = beam.position
         let blurRadius = max(thickness * 1.5, 6)
         updateBloomFilter(radius: blurRadius)
+        updatePersistentBlurGeometry(rect: rect, thickness: thickness, blurRadius: blurRadius * 1.3)
         startPoint = transform.point(from: spec.start)
         endPoint = transform.point(from: spec.end)
         position = startPoint
@@ -1281,6 +1286,8 @@ final class SweepingLaserNode: BaseLaserNode {
         glowShell.zRotation = beam.zRotation
         bloomNode.position = beam.position
         bloomNode.zRotation = beam.zRotation
+        persistentBlurNode.position = beam.position
+        persistentBlurNode.zRotation = beam.zRotation
         lightNode.position = .zero
         if motionActive {
             restartMotion()
@@ -1300,6 +1307,8 @@ final class SweepingLaserNode: BaseLaserNode {
     }
     
     override func didActivateLaser() {
+        persistentBlurNode.isHidden = false
+        persistentBlurNode.shouldEnableEffects = true
         guard areAfterimagesEnabled else { return }
         if action(forKey: "afterimage") == nil {
             startAfterimageLoop()
@@ -1307,6 +1316,8 @@ final class SweepingLaserNode: BaseLaserNode {
     }
     
     override func didDeactivateLaser() {
+        persistentBlurNode.isHidden = true
+        persistentBlurNode.shouldEnableEffects = false
         removeAction(forKey: "afterimage")
     }
     
@@ -1362,6 +1373,38 @@ final class SweepingLaserNode: BaseLaserNode {
             SKAction.fadeAlpha(to: 0.45, duration: duration)
         ])
         lightNode.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.repeatForever(lightSequence)]), withKey: "lightShimmer")
+    }
+    
+    private func setupPersistentBlur(using color: SKColor) {
+        persistentBlurShape.fillColor = color.withAlphaComponent(0.8)
+        persistentBlurShape.strokeColor = .clear
+        persistentBlurShape.alpha = 1.0
+        persistentBlurShape.blendMode = .add
+        persistentBlurNode.addChild(persistentBlurShape)
+        persistentBlurNode.zPosition = -0.5
+        persistentBlurNode.blendMode = .add
+        persistentBlurNode.shouldRasterize = true
+        persistentBlurNode.shouldEnableEffects = true
+        persistentBlurNode.shouldCenterFilter = true
+        if let filter = CIFilter(name: "CIGaussianBlur") {
+            filter.setValue(48, forKey: kCIInputRadiusKey)
+            persistentBlurNode.filter = filter
+        }
+        addChild(persistentBlurNode)
+    }
+    
+    private func updatePersistentBlurGeometry(rect: CGRect, thickness: CGFloat, blurRadius: CGFloat) {
+        let expanded = rect.insetBy(dx: -thickness * 3, dy: -thickness * 3)
+        let corner = max(thickness * 2.5, 8)
+        persistentBlurShape.path = CGPath(roundedRect: expanded, cornerWidth: corner, cornerHeight: corner, transform: nil)
+        persistentBlurShape.alpha = 1.0
+        if let filter = persistentBlurNode.filter {
+            filter.setValue(max(blurRadius * 2.5, 36), forKey: kCIInputRadiusKey)
+        } else if let filter = CIFilter(name: "CIGaussianBlur") {
+            filter.setValue(max(blurRadius * 2.5, 36), forKey: kCIInputRadiusKey)
+            persistentBlurNode.filter = filter
+            persistentBlurNode.shouldCenterFilter = true
+        }
     }
 }
 

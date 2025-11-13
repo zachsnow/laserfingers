@@ -35,11 +35,12 @@ deploy() {
   fi
 
   echo "Installing build to device $DEVICE_ID via devicectl…"
+  echo "Deploying..."
   xcrun devicectl device install app --device "$DEVICE_ID" "$app_path"
-
   echo "Deployed Laserfingers to device $DEVICE_ID using incremental build."
 }
 
+echo "Deploying..."
 if deploy >>"$LOG_FILE" 2>&1; then
   echo "Deploy succeeded."
 else

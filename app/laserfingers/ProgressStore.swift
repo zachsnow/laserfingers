@@ -44,16 +44,6 @@ struct GameSettings: Codable {
     }
 }
 
-extension GameSettings {
-    func withAllVisualEffectsEnabled() -> GameSettings {
-        var copy = self
-        copy.glowEnabled = true
-        copy.blurEnabled = true
-        copy.afterimageEnabled = true
-        return copy
-    }
-}
-
 final class ProgressStore {
     private enum Keys {
         static let progress = "laserfingers.levelProgress"

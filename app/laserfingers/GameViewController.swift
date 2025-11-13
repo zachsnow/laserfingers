@@ -187,6 +187,7 @@ struct GameplayVisualSettingsSheet: View {
 struct AboutView: View {
     @EnvironmentObject private var coordinator: AppCoordinator
     @State private var backgroundScene = MenuBackgroundScene()
+    private let buildInfo = BuildInfo.current()
     
     var body: some View {
         MenuScaffold(scene: backgroundScene, showDimOverlay: true) {
@@ -198,10 +199,44 @@ struct AboutView: View {
                     .foregroundColor(.white.opacity(0.85))
                 Link("See also Gernal →", destination: URL(string: "https://x0xrx.com")!)
                     .foregroundColor(.pink)
+                BuildInfoSection(buildInfo: buildInfo)
                 Spacer()
                 LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
             .padding(menuContentPadding)
+        }
+    }
+}
+
+struct BuildInfoSection: View {
+    let buildInfo: BuildInfo
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Build Info")
+                .font(.headline)
+            BuildInfoRow(label: "Version", value: buildInfo.version)
+            BuildInfoRow(label: "Build", value: buildInfo.buildNumber)
+            BuildInfoRow(label: "Built On", value: buildInfo.formattedBuildDate)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 4)
+    }
+}
+
+private struct BuildInfoRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+            Spacer()
+            Text(value)
+                .font(.subheadline.monospacedDigit())
+                .foregroundColor(.white)
         }
     }
 }
@@ -224,7 +259,7 @@ struct AdvancedMenuView: View {
                 LaserButton(title: "Import Level Code") {
                     coordinator.presentImportSheet(initialPayload: nil)
                 }
-                LaserButton(title: "Reset Progress") {
+                LaserButton(title: "Reset") {
                     coordinator.resetProgress()
                 }
                 LaserButton(title: "Unlock All Levels") {
