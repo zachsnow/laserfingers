@@ -212,6 +212,39 @@ enum LevelRepository {
         let finalName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return finalName.isEmpty ? trimmed : finalName
     }
+
+    static func saveLevel(_ level: Level, asNew: Bool) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        let directory = try downloadedLevelsDirectory()
+
+        // Determine the ID to use
+        let idToUse: String
+        if asNew {
+            // Generate a new ID with UUID suffix
+            let uuid = UUID()
+            // Remove any existing UUID suffix first
+            let baseID = level.id.components(separatedBy: "-").dropLast().joined(separator: "-")
+            idToUse = "\(baseID.isEmpty ? level.id : baseID)-\(uuid.uuidString.prefix(8))"
+        } else {
+            idToUse = level.id
+        }
+
+        let filename = "\(idToUse).json"
+        let fileURL = directory.appendingPathComponent(filename)
+
+        // Encode to JSON, then decode and modify the ID
+        var data = try encoder.encode(level)
+        if asNew {
+            var json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+            json["id"] = idToUse
+            data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+        }
+
+        try data.write(to: fileURL, options: .atomic)
+        return idToUse
+    }
 }
 
 private extension FileManager {

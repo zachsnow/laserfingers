@@ -44,6 +44,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     }
     
     enum FileMenuItem: String, CaseIterable, Identifiable {
+        case save
+        case saveNew
         case settings
         case options
         case source
@@ -55,6 +57,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
         var label: String {
             switch self {
+            case .save: return "Save"
+            case .saveNew: return "Save New"
             case .settings: return "Settings"
             case .options: return "Options"
             case .source: return "Source"
@@ -66,6 +70,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
         var iconName: String {
             switch self {
+            case .save: return "square.and.arrow.down"
+            case .saveNew: return "doc.badge.plus"
             case .settings: return "gear"
             case .options: return "slider.horizontal.3"
             case .source: return "doc.text"
@@ -173,6 +179,13 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     @Published var options = EditorOptions()
     @Published private(set) var undoStack: [EditorLevelSnapshot] = []
     @Published private(set) var redoStack: [EditorLevelSnapshot] = []
+
+    var isDownloadedLevel: Bool {
+        // Check if the level ID contains the UUID pattern (8 hex chars)
+        // which indicates it's a saved level from the Downloaded pack
+        let idComponents = workingLevel.id.split(separator: "-")
+        return idComponents.count > 1 && idComponents.last?.count == 8
+    }
     @Published var pendingFileAction: FileMenuItem?
     @Published var isExitConfirmationPresented = false
     @Published var isResetConfirmationPresented = false
@@ -188,6 +201,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         var holdSeconds: Double
         var drainSeconds: Double
         var fillColor: String
+        var effects: [Level.Button.Effect]
     }
     
     struct LaserSettingsState {
@@ -354,6 +368,10 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     
     func handleFileMenuSelection(_ item: FileMenuItem) {
         switch item {
+        case .save:
+            saveLevel(asNew: false)
+        case .saveNew:
+            saveLevel(asNew: true)
         case .exit:
             isExitConfirmationPresented = true
         case .reset:
@@ -366,7 +384,17 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     func dismissExitConfirmation() {
         isExitConfirmationPresented = false
     }
-    
+
+    private func saveLevel(asNew: Bool) {
+        do {
+            let level = Self.makeLevel(from: workingLevel)
+            let savedID = try LevelRepository.saveLevel(level, asNew: asNew)
+            print("Level saved successfully to Downloaded pack with ID: \(savedID)")
+        } catch {
+            print("Failed to save level: \(error)")
+        }
+    }
+
     func undo() {
         guard let previousState = undoStack.popLast() else { return }
         redoStack.append(workingLevel)
@@ -743,7 +771,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             holdSecondsEnabled: button.timing.holdSeconds != nil,
             holdSeconds: Double(button.timing.holdSeconds ?? 0),
             drainSeconds: Double(button.timing.drainSeconds),
-            fillColor: button.color.fill
+            fillColor: button.color.fill,
+            effects: button.effects
         )
     }
     
@@ -773,7 +802,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             required: state.required,
             color: color,
             hitAreas: hitAreas,
-            effects: button.effects
+            effects: state.effects
         )
         workingLevel.buttons[index] = updatedButton
         redoStack.removeAll()

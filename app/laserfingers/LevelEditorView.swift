@@ -130,11 +130,16 @@ struct LevelEditorView: View {
     private var fileButton: some View {
         Menu {
             ForEach(LevelEditorViewModel.FileMenuItem.allCases) { item in
-                Button(
-                    role: item.isDestructive ? .destructive : nil,
-                    action: { viewModel.handleFileMenuSelection(item) }
-                ) {
-                    Label(item.label, systemImage: item.iconName)
+                // Show "Save New" only if the level is from Downloaded pack
+                if item == .saveNew && !viewModel.isDownloadedLevel {
+                    EmptyView()
+                } else {
+                    Button(
+                        role: item.isDestructive ? .destructive : nil,
+                        action: { viewModel.handleFileMenuSelection(item) }
+                    ) {
+                        Label(item.label, systemImage: item.iconName)
+                    }
                 }
             }
         } label: {
@@ -481,6 +486,19 @@ private struct ObjectSettingsSheet: View {
                     }
                 }
             }
+            Section("Effects") {
+                ForEach(Array(state.effects.wrappedValue.enumerated()), id: \.offset) { index, effect in
+                    effectRow(for: index, in: state)
+                }
+                .onDelete { indexSet in
+                    state.effects.wrappedValue.remove(atOffsets: indexSet)
+                }
+                Button {
+                    addEffect(to: state)
+                } label: {
+                    Label("Add Effect", systemImage: "plus.circle")
+                }
+            }
             Section {
                 Button(role: .destructive) {
                     viewModel.delete(selection: selection)
@@ -589,6 +607,119 @@ private struct ObjectSettingsSheet: View {
         case .polygon(let points):
             return "Polygon with \(points.count) points"
         }
+    }
+
+    @ViewBuilder
+    private func effectRow(for index: Int, in state: Binding<LevelEditorViewModel.ButtonSettingsState>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Trigger", selection: Binding(
+                get: { state.effects.wrappedValue[index].trigger },
+                set: { newValue in
+                    var effects = state.effects.wrappedValue
+                    effects[index] = Level.Button.Effect(
+                        trigger: newValue,
+                        action: effects[index].action
+                    )
+                    state.effects.wrappedValue = effects
+                }
+            )) {
+                Text("Touch Started").tag(Level.Button.Effect.Trigger.touchStarted)
+                Text("Touch Ended").tag(Level.Button.Effect.Trigger.touchEnded)
+                Text("Turned On").tag(Level.Button.Effect.Trigger.turnedOn)
+                Text("Turned Off").tag(Level.Button.Effect.Trigger.turnedOff)
+            }
+
+            let action = state.effects.wrappedValue[index].action
+            Picker("Action", selection: Binding(
+                get: { action.kind },
+                set: { newValue in
+                    var effects = state.effects.wrappedValue
+                    effects[index] = Level.Button.Effect(
+                        trigger: effects[index].trigger,
+                        action: Level.Button.Effect.Action(kind: newValue, lasers: action.lasers)
+                    )
+                    state.effects.wrappedValue = effects
+                }
+            )) {
+                Text("Turn On Lasers").tag(Level.Button.Effect.Action.Kind.turnOnLasers)
+                Text("Turn Off Lasers").tag(Level.Button.Effect.Action.Kind.turnOffLasers)
+                Text("Toggle Lasers").tag(Level.Button.Effect.Action.Kind.toggleLasers)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Lasers")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button {
+                        if let firstLaser = viewModel.workingLevel.lasers.first {
+                            var effects = state.effects.wrappedValue
+                            var lasers = effects[index].action.lasers
+                            lasers.append(firstLaser.id)
+                            effects[index] = Level.Button.Effect(
+                                trigger: effects[index].trigger,
+                                action: Level.Button.Effect.Action(kind: effects[index].action.kind, lasers: lasers)
+                            )
+                            state.effects.wrappedValue = effects
+                        }
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(viewModel.workingLevel.lasers.isEmpty)
+                }
+
+                ForEach(Array(action.lasers.enumerated()), id: \.offset) { laserIndex, laserID in
+                    HStack {
+                        Picker("", selection: Binding(
+                            get: { laserID },
+                            set: { newLaserID in
+                                var effects = state.effects.wrappedValue
+                                var lasers = effects[index].action.lasers
+                                lasers[laserIndex] = newLaserID
+                                effects[index] = Level.Button.Effect(
+                                    trigger: effects[index].trigger,
+                                    action: Level.Button.Effect.Action(kind: effects[index].action.kind, lasers: lasers)
+                                )
+                                state.effects.wrappedValue = effects
+                            }
+                        )) {
+                            ForEach(viewModel.workingLevel.lasers, id: \.id) { laser in
+                                Text(laser.id).tag(laser.id)
+                            }
+                        }
+                        .labelsHidden()
+
+                        Button(role: .destructive) {
+                            var effects = state.effects.wrappedValue
+                            var lasers = effects[index].action.lasers
+                            lasers.remove(at: laserIndex)
+                            effects[index] = Level.Button.Effect(
+                                trigger: effects[index].trigger,
+                                action: Level.Button.Effect.Action(kind: effects[index].action.kind, lasers: lasers)
+                            )
+                            state.effects.wrappedValue = effects
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func addEffect(to state: Binding<LevelEditorViewModel.ButtonSettingsState>) {
+        let newEffect = Level.Button.Effect(
+            trigger: .touchStarted,
+            action: Level.Button.Effect.Action(
+                kind: .turnOnLasers,
+                lasers: []
+            )
+        )
+        state.effects.wrappedValue.append(newEffect)
     }
 }
 
