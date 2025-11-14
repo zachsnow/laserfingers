@@ -186,9 +186,18 @@ enum LevelRepository {
             options: [.skipsHiddenFiles]
         ).filter { $0.pathExtension.lowercased() == "json" }
         return files.compactMap { url in
-            guard let data = try? Data(contentsOf: url),
-                  let metadata = try? metadataDecoder.decode(DownloadedLevelMetadata.self, from: data)
-            else { return nil }
+            guard let data = try? Data(contentsOf: url) else {
+                #if DEBUG
+                print("⚠️ Unable to read downloaded level file: \(url.lastPathComponent)")
+                #endif
+                return nil
+            }
+            guard let metadata = try? metadataDecoder.decode(DownloadedLevelMetadata.self, from: data) else {
+                #if DEBUG
+                print("⚠️ Unable to decode metadata for downloaded level: \(url.lastPathComponent)")
+                #endif
+                return nil
+            }
             return DownloadedLevelInfo(url: url, metadata: metadata)
         }
     }
