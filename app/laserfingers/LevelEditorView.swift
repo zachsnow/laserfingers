@@ -14,16 +14,24 @@ struct LevelEditorView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 32)
         }
-        .sheet(item: $viewModel.pendingFileAction, onDismiss: viewModel.dismissFileAction) { action in
+        .sheet(item: $viewModel.pendingLevelAction, onDismiss: viewModel.dismissLevelAction) { action in
             switch action {
             case .settings:
                 LevelSettingsSheet(viewModel: viewModel)
-            case .options:
-                EditorOptionsSheet(viewModel: viewModel)
             case .source:
                 ViewSourceSheet(viewModel: viewModel)
             case .share:
                 LevelShareSheet(url: viewModel.shareURL)
+            case .play:
+                EmptyView()  // Handled by coordinator
+            default:
+                EmptyView()
+            }
+        }
+        .sheet(item: $viewModel.pendingEditorAction, onDismiss: viewModel.dismissEditorAction) { action in
+            switch action {
+            case .options:
+                EditorOptionsSheet(viewModel: viewModel)
             default:
                 EmptyView()
             }
@@ -46,6 +54,13 @@ struct LevelEditorView: View {
         } message: {
             Text("Unsaved changes will be lost.")
         }
+        .onChange(of: viewModel.pendingLevelAction) { action in
+            if action == .play {
+                viewModel.dismissLevelAction()
+                let level = LevelEditorViewModel.makeLevel(from: viewModel.workingLevel)
+                coordinator.playLevel(level)
+            }
+        }
     }
     
     private var toolbar: some View {
@@ -59,7 +74,9 @@ struct LevelEditorView: View {
             Spacer()
             playbackButton
             Spacer()
-            fileButton
+            levelMenuButton
+            Spacer()
+            editorMenuButton
             Spacer()
         }
         .padding(.vertical, 10)
@@ -127,24 +144,37 @@ struct LevelEditorView: View {
         .accessibilityLabel(viewModel.playbackState == .playing ? "Pause" : "Play")
     }
     
-    private var fileButton: some View {
+    private var levelMenuButton: some View {
         Menu {
-            ForEach(LevelEditorViewModel.FileMenuItem.allCases) { item in
+            ForEach(LevelEditorViewModel.LevelMenuItem.allCases) { item in
                 // Show "Save New" only if the level is from Downloaded pack
                 if item == .saveNew && !viewModel.isDownloadedLevel {
                     EmptyView()
                 } else {
-                    Button(
-                        role: item.isDestructive ? .destructive : nil,
-                        action: { viewModel.handleFileMenuSelection(item) }
-                    ) {
+                    Button(action: { viewModel.handleLevelMenuSelection(item) }) {
                         Label(item.label, systemImage: item.iconName)
                     }
                 }
             }
         } label: {
-            EditorIconButton(systemName: "ellipsis.circle", isHighlighted: false)
-                .accessibilityLabel("File")
+            EditorIconButton(systemName: "cube", isHighlighted: false)
+                .accessibilityLabel("Level")
+        }
+    }
+
+    private var editorMenuButton: some View {
+        Menu {
+            ForEach(LevelEditorViewModel.EditorMenuItem.allCases) { item in
+                Button(
+                    role: item.isDestructive ? .destructive : nil,
+                    action: { viewModel.handleEditorMenuSelection(item) }
+                ) {
+                    Label(item.label, systemImage: item.iconName)
+                }
+            }
+        } label: {
+            EditorIconButton(systemName: "wrench.and.screwdriver", isHighlighted: false)
+                .accessibilityLabel("Editor")
         }
     }
 }

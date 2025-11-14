@@ -130,6 +130,15 @@ final class AppCoordinator: ObservableObject {
         screen = .gameplay
     }
     
+    func playLevel(_ level: Level) {
+        // Play a level from the editor without progress tracking
+        let session = GameSession(level: level, settings: settings)
+        let scene = LaserGameScene(level: level, session: session, settings: settings)
+        scene.scaleMode = .resizeFill
+        activeGame = GameRuntime(level: level, session: session, scene: scene)
+        screen = .gameplay
+    }
+
     func pauseGame() {
         guard let runtime = activeGame,
               runtime.session.status == .running else { return }

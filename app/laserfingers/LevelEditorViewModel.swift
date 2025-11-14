@@ -43,13 +43,41 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         case playing
     }
     
-    enum FileMenuItem: String, CaseIterable, Identifiable {
-        case save
-        case saveNew
+    enum LevelMenuItem: String, CaseIterable, Identifiable {
+        case play
         case settings
-        case options
         case source
         case share
+        case save
+        case saveNew
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .play: return "Play Level"
+            case .settings: return "Settings"
+            case .source: return "Source"
+            case .share: return "Share"
+            case .save: return "Save"
+            case .saveNew: return "Save New"
+            }
+        }
+
+        var iconName: String {
+            switch self {
+            case .play: return "play.fill"
+            case .settings: return "gear"
+            case .source: return "doc.text"
+            case .share: return "square.and.arrow.up"
+            case .save: return "square.and.arrow.down"
+            case .saveNew: return "doc.badge.plus"
+            }
+        }
+    }
+
+    enum EditorMenuItem: String, CaseIterable, Identifiable {
+        case options
         case reset
         case exit
 
@@ -57,12 +85,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
         var label: String {
             switch self {
-            case .save: return "Save"
-            case .saveNew: return "Save New"
-            case .settings: return "Settings"
             case .options: return "Options"
-            case .source: return "Source"
-            case .share: return "Share"
             case .reset: return "Reset"
             case .exit: return "Exit"
             }
@@ -70,12 +93,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
         var iconName: String {
             switch self {
-            case .save: return "square.and.arrow.down"
-            case .saveNew: return "doc.badge.plus"
-            case .settings: return "gear"
             case .options: return "slider.horizontal.3"
-            case .source: return "doc.text"
-            case .share: return "square.and.arrow.up"
             case .reset: return "arrow.counterclockwise"
             case .exit: return "xmark.circle"
             }
@@ -184,7 +202,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         // Check if the level has a UUID, which indicates it's from the Downloaded pack
         return workingLevel.uuid != nil
     }
-    @Published var pendingFileAction: FileMenuItem?
+    @Published var pendingLevelAction: LevelMenuItem?
+    @Published var pendingEditorAction: EditorMenuItem?
     @Published var isExitConfirmationPresented = false
     @Published var isResetConfirmationPresented = false
     @Published private(set) var timelineSeconds: TimeInterval = 0
@@ -364,21 +383,39 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         timelineSeconds = 0
     }
     
-    func handleFileMenuSelection(_ item: FileMenuItem) {
+    func handleLevelMenuSelection(_ item: LevelMenuItem) {
         switch item {
         case .save:
             saveLevel(asNew: false)
         case .saveNew:
             saveLevel(asNew: true)
+        case .play:
+            // Will be handled by coordinator
+            pendingLevelAction = item
+        default:
+            pendingLevelAction = item
+        }
+    }
+
+    func handleEditorMenuSelection(_ item: EditorMenuItem) {
+        switch item {
         case .exit:
             isExitConfirmationPresented = true
         case .reset:
             isResetConfirmationPresented = true
         default:
-            pendingFileAction = item
+            pendingEditorAction = item
         }
     }
-    
+
+    func dismissLevelAction() {
+        pendingLevelAction = nil
+    }
+
+    func dismissEditorAction() {
+        pendingEditorAction = nil
+    }
+
     func dismissExitConfirmation() {
         isExitConfirmationPresented = false
     }
@@ -444,9 +481,6 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         pendingTwoPointTool = nil
     }
     
-    func dismissFileAction() {
-        pendingFileAction = nil
-    }
     
     private func pushUndoState() {
         undoStack.append(workingLevel)
@@ -728,7 +762,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         applySnapshotToScene()
     }
 
-    private static func makeLevel(from snapshot: EditorLevelSnapshot) -> Level {
+    static func makeLevel(from snapshot: EditorLevelSnapshot) -> Level {
         let backgroundImage: String?
         switch snapshot.background {
         case .gradient:

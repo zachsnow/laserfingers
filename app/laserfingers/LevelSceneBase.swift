@@ -648,8 +648,8 @@ class LevelSceneBase: SKScene {
             return nil
         }
 
-        node.alpha = 0
-        node.run(SKAction.fadeIn(withDuration: 0.2))
+        // Skip fade-in animation - just show immediately
+        node.alpha = 1
         node.addLight()
         node.configureVisualEffects(
             glowEnabled: settings.glowEnabled,
@@ -658,6 +658,14 @@ class LevelSceneBase: SKScene {
         )
         var runtime = LaserRuntime(spec: spec, node: node)
         runtime.updateLayout(transform: transform)
+
+        // Initialize position with current timeline time to ensure proper rendering when paused
+        if let rayNode = node as? RayLaserNode {
+            rayNode.updatePosition(at: timelineSeconds)
+        } else if let segmentNode = node as? SegmentLaserNode {
+            segmentNode.updatePosition(at: timelineSeconds)
+        }
+
         return runtime
     }
     
