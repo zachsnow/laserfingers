@@ -1333,12 +1333,13 @@ struct NormalizedLayoutTransform {
     func normalizedPoint(from scenePoint: CGPoint, zoomScale: CGFloat) -> Level.NormalizedPoint? {
         let dx = scenePoint.x - frame.midX
         let dy = scenePoint.y - frame.midY
-        // When zoomed out (e.g., zoomScale 0.5), we show 2x the area, so divide by zoomScale
-        let effectiveScale = shortScale / zoomScale
+        // The scene point from convertPoint(fromView:) is in world space accounting for camera
+        // We just need to normalize it by shortScale (no zoom adjustment needed)
+        AppLog.coordinates.debug("Normalizing: dx=\(dx) dy=\(dy) shortScale=\(shortScale) frame.mid=(\(frame.midX), \(frame.midY))")
         if shortAxisIsHorizontal {
-            return Level.NormalizedPoint(x: dx / effectiveScale, y: dy / effectiveScale)
+            return Level.NormalizedPoint(x: dx / shortScale, y: dy / shortScale)
         } else {
-            return Level.NormalizedPoint(x: dy / effectiveScale, y: dx / effectiveScale)
+            return Level.NormalizedPoint(x: dy / shortScale, y: dx / shortScale)
         }
     }
     
@@ -1690,14 +1691,28 @@ final class RayLaserNode: BaseLaserNode {
 
         let thickness = max(transform.length(from: thicknessScale), 1)
 
-        // Ray extends in both directions (2x screen diagonal for "infinite" effect)
-        let rayLength = sqrt(pow(transform.frame.width, 2) + pow(transform.frame.height, 2)) * 2
+        // Update endpoint position first so we can calculate distance from center
+        let endpointPos = laser.endpoint.position(at: time + laser.endpoint.t, transform: transform)
+
+        // Calculate distance from endpoint to frame center
+        let dx = endpointPos.x - transform.frame.midX
+        let dy = endpointPos.y - transform.frame.midY
+        let distanceToCenter = sqrt(dx * dx + dy * dy)
+
+        // Ray must extend at least: distance to center + half the diagonal of the frame
+        // This ensures it always appears infinite within the gameplay area
+        let frameDiagonal = sqrt(pow(transform.frame.width, 2) + pow(transform.frame.height, 2))
+        let minRayLength = distanceToCenter + frameDiagonal / 2
+
+        // Use at least 2x diagonal for close endpoints (original behavior)
+        let rayLength = max(minRayLength * 2, frameDiagonal * 2)
+
+        AppLog.scene.debug("Ray endpoint distance=\(distanceToCenter) frameSize=(\(transform.frame.width),\(transform.frame.height)) rayLength=\(rayLength)")
+
         configureLineLaser(start: CGPoint(x: 0, y: -rayLength / 2), end: CGPoint(x: 0, y: rayLength / 2), thickness: thickness)
 
         lightNode.position = .zero
 
-        // Update endpoint position
-        let endpointPos = laser.endpoint.position(at: time + laser.endpoint.t, transform: transform)
         position = endpointPos
 
         // Update rotation

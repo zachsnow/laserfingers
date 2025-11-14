@@ -50,8 +50,6 @@ struct RootContainerView: View {
             LevelSelectView()
         case .advancedMenu:
             AdvancedMenuView()
-        case .logViewer:
-            LogViewerView()
         case .levelEditor:
             if let editorViewModel = coordinator.levelEditorViewModel {
                 LevelEditorView(viewModel: editorViewModel)
@@ -240,34 +238,61 @@ private struct BuildInfoRow: View {
 struct AdvancedMenuView: View {
     @EnvironmentObject private var coordinator: AppCoordinator
     @State private var backgroundScene = MenuBackgroundScene()
-    
+
     var body: some View {
-        MenuScaffold(scene: backgroundScene, showDimOverlay: true) {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Advanced Tools")
-                    .font(.title.bold())
-                Toggle("Infinite Slots", isOn: $coordinator.settings.infiniteSlotsEnabled)
-                    .toggleStyle(SwitchToggleStyle(tint: .pink))
-                    .accessibilityIdentifier("advanced_infinite_slots_toggle")
-                LaserButton(title: "Level Editor") {
-                    coordinator.openLevelEditor(with: nil)
+        NavigationStack {
+            MenuScaffold(scene: backgroundScene, showDimOverlay: true) {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Advanced Tools")
+                        .font(.title.bold())
+                    Toggle("Infinite Slots", isOn: $coordinator.settings.infiniteSlotsEnabled)
+                        .toggleStyle(SwitchToggleStyle(tint: .pink))
+                        .accessibilityIdentifier("advanced_infinite_slots_toggle")
+                    LaserButton(title: "Level Editor") {
+                        coordinator.openLevelEditor(with: nil)
+                    }
+                    LaserButton(title: "Import Level Code") {
+                        coordinator.presentImportSheet(initialPayload: nil)
+                    }
+                    NavigationLink {
+                        LogViewerScreen()
+                    } label: {
+                        Text("VIEW LOGS")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .foregroundColor(.white)
+                            .background(
+                                LinearGradient(colors: [.pink, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .shadow(color: Color.pink.opacity(0.4), radius: 8, x: 0, y: 4)
+                    }
+                    .buttonStyle(.plain)
+                    LaserButton(title: "Reset") {
+                        coordinator.resetProgress()
+                    }
+                    LaserButton(title: "Unlock All Levels") {
+                        coordinator.unlockAllLevels()
+                    }
+                    Spacer()
                 }
-                LaserButton(title: "Import Level Code") {
-                    coordinator.presentImportSheet(initialPayload: nil)
-                }
-                LaserButton(title: "View Logs") {
-                    coordinator.showLogViewer()
-                }
-                LaserButton(title: "Reset") {
-                    coordinator.resetProgress()
-                }
-                LaserButton(title: "Unlock All Levels") {
-                    coordinator.unlockAllLevels()
-                }
-                Spacer()
-                LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
+                .padding(menuContentPadding)
             }
-            .padding(menuContentPadding)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        coordinator.goToMainMenu()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .foregroundColor(.pink)
+                    }
+                }
+            }
         }
     }
 }
@@ -1079,21 +1104,3 @@ struct LaserButton: View {
     }
 }
 
-// MARK: - Log Viewer
-
-struct LogViewerView: View {
-    @EnvironmentObject private var coordinator: AppCoordinator
-
-    var body: some View {
-        ZStack {
-            LogViewerScreen()
-            VStack {
-                Spacer()
-                LaserButton(title: "Back", style: .secondary) {
-                    coordinator.goToMainMenu()
-                }
-                .padding(menuContentPadding)
-            }
-        }
-    }
-}

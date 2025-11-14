@@ -193,13 +193,8 @@ struct LevelEditorView: View {
     private var levelMenuButton: some View {
         Menu {
             ForEach(LevelEditorViewModel.LevelMenuItem.allCases) { item in
-                // Show "Save New" only if the level is from Downloaded pack
-                if item == .saveNew && !viewModel.isDownloadedLevel {
-                    EmptyView()
-                } else {
-                    Button(action: { viewModel.handleLevelMenuSelection(item) }) {
-                        Label(item.label, systemImage: item.iconName)
-                    }
+                Button(action: { viewModel.handleLevelMenuSelection(item) }) {
+                    Label(item.label, systemImage: item.iconName)
                 }
             }
         } label: {
@@ -211,16 +206,21 @@ struct LevelEditorView: View {
     private var editorMenuButton: some View {
         Menu {
             ForEach(LevelEditorViewModel.EditorMenuItem.allCases) { item in
-                Button(
-                    role: item.isDestructive ? .destructive : nil,
-                    action: { viewModel.handleEditorMenuSelection(item) }
-                ) {
-                    Label(item.label, systemImage: item.iconName)
+                // Show "Save New" only if the level is from Downloaded pack
+                if item == .saveNew && !viewModel.isDownloadedLevel {
+                    EmptyView()
+                } else {
+                    Button(
+                        role: item.isDestructive ? .destructive : nil,
+                        action: { viewModel.handleEditorMenuSelection(item) }
+                    ) {
+                        Label(item.label, systemImage: item.iconName)
+                    }
                 }
             }
         } label: {
-            EditorIconButton(systemName: "wrench.and.screwdriver", isHighlighted: false)
-                .accessibilityLabel("Editor")
+            EditorIconButton(systemName: "ellipsis.circle", isHighlighted: false)
+                .accessibilityLabel("More")
         }
     }
 }
@@ -607,7 +607,7 @@ private struct ObjectSettingsSheet: View {
             }
             switch state.kind.wrappedValue {
             case .sweeper:
-                Section("Sweeper") {
+                Section("Ray") {
                     EditorNullableNumberRow(
                         title: "Sweep Seconds",
                         value: state.sweepSeconds,

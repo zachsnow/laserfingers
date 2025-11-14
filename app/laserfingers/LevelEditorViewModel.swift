@@ -31,7 +31,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             switch self {
             case .circle: return "Circle"
             case .square: return "Square"
-            case .sweeper: return "Sweeper"
+            case .sweeper: return "Ray"
             case .segment: return "Segment"
             case .rotor: return "Rotor"
             }
@@ -48,8 +48,6 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         case settings
         case source
         case share
-        case save
-        case saveNew
 
         var id: String { rawValue }
 
@@ -59,8 +57,6 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             case .settings: return "Settings"
             case .source: return "Source"
             case .share: return "Share"
-            case .save: return "Save"
-            case .saveNew: return "Save New"
             }
         }
 
@@ -70,13 +66,13 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             case .settings: return "gear"
             case .source: return "doc.text"
             case .share: return "square.and.arrow.up"
-            case .save: return "square.and.arrow.down"
-            case .saveNew: return "doc.badge.plus"
             }
         }
     }
 
     enum EditorMenuItem: String, CaseIterable, Identifiable {
+        case save
+        case saveNew
         case options
         case reset
         case exit
@@ -85,6 +81,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
         var label: String {
             switch self {
+            case .save: return "Save"
+            case .saveNew: return "Save New"
             case .options: return "Options"
             case .reset: return "Reset"
             case .exit: return "Exit"
@@ -93,6 +91,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
         var iconName: String {
             switch self {
+            case .save: return "square.and.arrow.down"
+            case .saveNew: return "doc.badge.plus"
             case .options: return "slider.horizontal.3"
             case .reset: return "arrow.counterclockwise"
             case .exit: return "xmark.circle"
@@ -390,10 +390,6 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     
     func handleLevelMenuSelection(_ item: LevelMenuItem) {
         switch item {
-        case .save:
-            saveLevel(asNew: false)
-        case .saveNew:
-            saveLevel(asNew: true)
         case .play:
             // Will be handled by coordinator
             pendingLevelAction = item
@@ -404,6 +400,10 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
     func handleEditorMenuSelection(_ item: EditorMenuItem) {
         switch item {
+        case .save:
+            saveLevel(asNew: false)
+        case .saveNew:
+            saveLevel(asNew: true)
         case .exit:
             isExitConfirmationPresented = true
         case .reset:
@@ -516,12 +516,13 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     
     private func snapPoint(_ point: Level.NormalizedPoint) -> Level.NormalizedPoint {
         func snap(_ value: CGFloat) -> CGFloat {
-            let clamped = value.clamped(to: -1...1)
-            guard options.snapEnabled else { return clamped }
+            // Don't clamp - allow coordinates outside -1...1 when zoomed out
+            guard options.snapEnabled else { return value }
             let interval = max(options.snapInterval, 0.01)
-            let snapped = (clamped / interval).rounded() * interval
-            return snapped.clamped(to: -1...1)
+            let snapped = (value / interval).rounded() * interval
+            return snapped
         }
+        AppLog.editor.debug("snapPoint input=(\(point.x), \(point.y)) snapEnabled=\(options.snapEnabled) output=(\(snap(point.x)), \(snap(point.y)))")
         return Level.NormalizedPoint(x: snap(point.x), y: snap(point.y))
     }
     
