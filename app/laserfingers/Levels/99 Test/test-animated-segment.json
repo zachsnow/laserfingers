@@ -1,0 +1,78 @@
+{
+  "id": "test-animated-segment",
+  "title": "Animated Segment Test",
+  "description": "Test level for animated segment laser endpoints",
+  "backgroundImage": "../../Images/bg.jpg",
+  "maxTouches": 2,
+  "buttons": [
+    {
+      "id": "test-button",
+      "position": {
+        "x": 0.0,
+        "y": -0.6
+      },
+      "timing": {
+        "chargeSeconds": 2.0,
+        "holdSeconds": null,
+        "drainSeconds": 2.0
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#4CC9F0",
+        "glow": "#A3CEFF",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "test-pad",
+          "shape": {
+            "type": "circle",
+            "radius": 0.28
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": []
+    }
+  ],
+  "lasers": [
+    {
+      "id": "animated-segment",
+      "color": "#FF6B6B",
+      "thickness": 0.02,
+      "enabled": true,
+      "type": "segment",
+      "startEndpoint": {
+        "points": [
+          {
+            "x": -0.8,
+            "y": 0.0
+          },
+          {
+            "x": 0.8,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": 4.0
+      },
+      "endEndpoint": {
+        "points": [
+          {
+            "x": 0.0,
+            "y": 0.8
+          },
+          {
+            "x": 0.0,
+            "y": -0.8
+          }
+        ],
+        "cycleSeconds": 3.0
+      }
+    }
+  ],
+  "unlocks": []
+}

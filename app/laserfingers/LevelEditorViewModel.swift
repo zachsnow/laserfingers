@@ -900,20 +900,139 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         applySnapshotToScene()
         activeSelection = nil
     }
+
+    func updateLaserPathPoint(laserID: String, pointIndex: Int, to newPosition: Level.NormalizedPoint) {
+        guard let laserIndex = workingLevel.lasers.firstIndex(where: { $0.id == laserID }) else { return }
+        let snapped = snapPoint(newPosition)
+
+        pushUndoState()
+
+        let laser = workingLevel.lasers[laserIndex]
+
+        if let rayLaser = laser as? Level.RayLaser {
+            // Update endpoint path point
+            var points = rayLaser.endpoint.points
+            guard pointIndex >= 0 && pointIndex < points.count else { return }
+            points[pointIndex] = snapped
+
+            let updatedPath = Level.EndpointPath(
+                points: points,
+                cycleSeconds: rayLaser.endpoint.cycleSeconds,
+                t: rayLaser.endpoint.t
+            )
+
+            let updatedLaser = Level.RayLaser(
+                id: rayLaser.id,
+                color: rayLaser.color,
+                thickness: rayLaser.thickness,
+                cadence: rayLaser.cadence,
+                endpoint: updatedPath,
+                initialAngle: rayLaser.initialAngle,
+                rotationSpeed: rayLaser.rotationSpeed,
+                enabled: rayLaser.enabled
+            )
+
+            workingLevel.lasers[laserIndex] = updatedLaser
+        } else if let segmentLaser = laser as? Level.SegmentLaser {
+            // Update segment laser endpoints
+            if pointIndex >= 0 {
+                // Positive index: start endpoint
+                var points = segmentLaser.startEndpoint.points
+                guard pointIndex < points.count else { return }
+                points[pointIndex] = snapped
+
+                let updatedStartPath = Level.EndpointPath(
+                    points: points,
+                    cycleSeconds: segmentLaser.startEndpoint.cycleSeconds,
+                    t: segmentLaser.startEndpoint.t
+                )
+
+                let updatedLaser = Level.SegmentLaser(
+                    id: segmentLaser.id,
+                    color: segmentLaser.color,
+                    thickness: segmentLaser.thickness,
+                    cadence: segmentLaser.cadence,
+                    startEndpoint: updatedStartPath,
+                    endEndpoint: segmentLaser.endEndpoint,
+                    enabled: segmentLaser.enabled
+                )
+
+                workingLevel.lasers[laserIndex] = updatedLaser
+            } else {
+                // Negative index: end endpoint
+                let actualIndex = -(pointIndex + 1)
+                var points = segmentLaser.endEndpoint.points
+                guard actualIndex >= 0 && actualIndex < points.count else { return }
+                points[actualIndex] = snapped
+
+                let updatedEndPath = Level.EndpointPath(
+                    points: points,
+                    cycleSeconds: segmentLaser.endEndpoint.cycleSeconds,
+                    t: segmentLaser.endEndpoint.t
+                )
+
+                let updatedLaser = Level.SegmentLaser(
+                    id: segmentLaser.id,
+                    color: segmentLaser.color,
+                    thickness: segmentLaser.thickness,
+                    cadence: segmentLaser.cadence,
+                    startEndpoint: segmentLaser.startEndpoint,
+                    endEndpoint: updatedEndPath,
+                    enabled: segmentLaser.enabled
+                )
+
+                workingLevel.lasers[laserIndex] = updatedLaser
+            }
+        }
+
+        redoStack.removeAll()
+        applySnapshotToScene()
+    }
+
+    func updateButtonPosition(buttonID: String, to newPosition: Level.NormalizedPoint) {
+        guard let buttonIndex = workingLevel.buttons.firstIndex(where: { $0.id == buttonID }) else { return }
+        let snapped = snapPoint(newPosition)
+
+        pushUndoState()
+
+        let button = workingLevel.buttons[buttonIndex]
+        let updatedButton = Level.Button(
+            id: button.id,
+            position: snapped,
+            timing: button.timing,
+            hitLogic: button.hitLogic,
+            required: button.required,
+            color: button.color,
+            hitAreas: button.hitAreas,
+            effects: button.effects
+        )
+
+        workingLevel.buttons[buttonIndex] = updatedButton
+        redoStack.removeAll()
+        applySnapshotToScene()
+    }
 }
 
 extension LevelEditorViewModel: LevelEditorSceneDelegate {
     func editorScene(_ scene: LevelEditorScene, didTapNormalized point: Level.NormalizedPoint) {
         handleTap(at: point)
     }
-    
+
     func editorScene(_ scene: LevelEditorScene, didSelectButtonID buttonID: String, hitAreaID: String?) {
         guard playbackState == .paused else { return }
         activeSelection = .button(buttonID: buttonID, hitAreaID: hitAreaID)
     }
-    
+
     func editorScene(_ scene: LevelEditorScene, didSelectLaserID laserID: String) {
         guard playbackState == .paused else { return }
         activeSelection = .laser(laserID: laserID)
+    }
+
+    func editorScene(_ scene: LevelEditorScene, didDragPathPoint laserID: String, pointIndex: Int, to point: Level.NormalizedPoint) {
+        updateLaserPathPoint(laserID: laserID, pointIndex: pointIndex, to: point)
+    }
+
+    func editorScene(_ scene: LevelEditorScene, didDragButton buttonID: String, to point: Level.NormalizedPoint) {
+        updateButtonPosition(buttonID: buttonID, to: point)
     }
 }

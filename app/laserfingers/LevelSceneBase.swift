@@ -34,6 +34,12 @@ class LevelSceneBase: SKScene {
     internal var laserStates: [LaserRuntime] = []
     internal var laserIndexById: [String: Int] = [:]
     internal private(set) var fillPercentage: CGFloat = 0
+    internal var pathPointHandles: [PathPointHandleNode] = []
+    internal var showPathPointHandles: Bool = false {
+        didSet {
+            updatePathPointHandlesVisibility()
+        }
+    }
     
     private let backgroundImageNode: SKSpriteNode = {
         let node = SKSpriteNode()
@@ -107,19 +113,57 @@ class LevelSceneBase: SKScene {
         
         var updatedLasers: [LaserRuntime] = []
         for laser in newLevel.lasers {
-            if let runtime = oldLaserMap[laser.id], runtime.spec == laser {
-                updatedLasers.append(runtime)
-            } else if var newRuntime = makeLaserRuntime(from: laser, transform: transform) {
-                newRuntime.node.startMotion()
-                newRuntime.applyFiringState(immediate: true)
-                newRuntime.node.zPosition = 10
-                addChild(newRuntime.node)
-                updatedLasers.append(newRuntime)
+            // Check if laser changed by comparing subclass-specific properties
+            let laserChanged: Bool
+            if let oldRuntime = oldLaserMap[laser.id] {
+                // Compare based on actual laser type
+                if let newRay = laser as? Level.RayLaser, let oldRay = oldRuntime.spec as? Level.RayLaser {
+                    laserChanged = newRay != oldRay
+                } else if let newSeg = laser as? Level.SegmentLaser, let oldSeg = oldRuntime.spec as? Level.SegmentLaser {
+                    laserChanged = newSeg != oldSeg
+                } else {
+                    // Type changed, definitely different
+                    laserChanged = true
+                }
+            } else {
+                // New laser
+                laserChanged = true
+            }
+
+            if laserChanged {
+                // Laser changed or new, create new runtime
+                if var newRuntime = makeLaserRuntime(from: laser, transform: transform) {
+                    // Remove old laser node if it exists
+                    if let oldRuntime = oldLaserMap[laser.id] {
+                        oldRuntime.node.removeFromParent()
+                    }
+                    newRuntime.node.startMotion()
+                    newRuntime.applyFiringState(immediate: true)
+                    newRuntime.node.zPosition = 10
+                    addChild(newRuntime.node)
+                    updatedLasers.append(newRuntime)
+                }
+            } else {
+                // Laser unchanged, keep existing runtime
+                if let runtime = oldLaserMap[laser.id] {
+                    updatedLasers.append(runtime)
+                }
             }
         }
         laserStates = updatedLasers
         laserIndexById = Dictionary(uniqueKeysWithValues: laserStates.enumerated().map { ($0.element.spec.id, $0.offset) })
         level = newLevel
+
+        // Force laser nodes to update their positions with the current timeline time
+        for index in laserStates.indices {
+            if let rayNode = laserStates[index].node as? RayLaserNode {
+                rayNode.updatePosition(at: timelineSeconds)
+            } else if let segmentNode = laserStates[index].node as? SegmentLaserNode {
+                segmentNode.updatePosition(at: timelineSeconds)
+            }
+        }
+
+        rebuildPathPointHandles()
     }
     
     func applyVisualSettings(_ newSettings: GameSettings) {
@@ -206,6 +250,7 @@ class LevelSceneBase: SKScene {
         addBackground()
         addButtons()
         spawnLasers()
+        rebuildPathPointHandles()
     }
     
     // MARK: - Scene Construction
@@ -319,6 +364,7 @@ class LevelSceneBase: SKScene {
             runtime.updateLayout(transform: transform)
             laserStates[index] = runtime
         }
+        updatePathPointHandlesLayout()
     }
     
     func normalizedPoint(from scenePoint: CGPoint) -> Level.NormalizedPoint? {
@@ -347,6 +393,128 @@ class LevelSceneBase: SKScene {
             }
         }
         return nil
+    }
+
+    func pathPointHandleSelection(at scenePoint: CGPoint) -> PathPointHandleNode? {
+        for handle in pathPointHandles {
+            if handle.contains(point: scenePoint, in: self) {
+                return handle
+            }
+        }
+        return nil
+    }
+
+    internal func rebuildPathPointHandles() {
+        // Remove existing handles
+        pathPointHandles.forEach { $0.removeFromParent() }
+        pathPointHandles.removeAll()
+
+        guard let transform = layoutTransform else { return }
+
+        // Create handles for laser path points at their defined positions (not animated positions)
+        for laser in level.lasers {
+            if let rayLaser = laser as? Level.RayLaser {
+                // Add handles for each raw endpoint point
+                for (index, point) in rayLaser.endpoint.points.enumerated() {
+                    let handle = PathPointHandleNode(
+                        type: .endpoint,
+                        laserID: laser.id,
+                        pointIndex: index,
+                        buttonID: nil
+                    )
+                    handle.position = transform.point(from: point)
+                    handle.isHidden = !showPathPointHandles
+                    addChild(handle)
+                    pathPointHandles.append(handle)
+                }
+            } else if let segmentLaser = laser as? Level.SegmentLaser {
+                // Add handles for start endpoint points
+                for (index, point) in segmentLaser.startEndpoint.points.enumerated() {
+                    let handle = PathPointHandleNode(
+                        type: .endpoint,
+                        laserID: laser.id,
+                        pointIndex: index,
+                        buttonID: nil
+                    )
+                    handle.position = transform.point(from: point)
+                    handle.isHidden = !showPathPointHandles
+                    addChild(handle)
+                    pathPointHandles.append(handle)
+                }
+                // Add handles for end endpoint points
+                for (index, point) in segmentLaser.endEndpoint.points.enumerated() {
+                    let handle = PathPointHandleNode(
+                        type: .endpoint,
+                        laserID: laser.id,
+                        pointIndex: -(index + 1), // Negative index to indicate end endpoint
+                        buttonID: nil
+                    )
+                    handle.position = transform.point(from: point)
+                    handle.isHidden = !showPathPointHandles
+                    addChild(handle)
+                    pathPointHandles.append(handle)
+                }
+            }
+        }
+
+        // Create handles for button anchor points
+        for button in level.buttons {
+            let handle = PathPointHandleNode(
+                type: .buttonAnchor,
+                laserID: nil,
+                pointIndex: nil,
+                buttonID: button.id
+            )
+            handle.position = transform.point(from: button.position)
+            handle.isHidden = !showPathPointHandles
+            addChild(handle)
+            pathPointHandles.append(handle)
+        }
+    }
+
+    internal func updatePathPointHandlesLayout() {
+        guard let transform = layoutTransform else { return }
+
+        var handleIndex = 0
+
+        // Update laser path point handles to their raw defined positions
+        for laser in level.lasers {
+            if let rayLaser = laser as? Level.RayLaser {
+                for point in rayLaser.endpoint.points {
+                    if handleIndex < pathPointHandles.count {
+                        pathPointHandles[handleIndex].position = transform.point(from: point)
+                        handleIndex += 1
+                    }
+                }
+            } else if let segmentLaser = laser as? Level.SegmentLaser {
+                for point in segmentLaser.startEndpoint.points {
+                    if handleIndex < pathPointHandles.count {
+                        pathPointHandles[handleIndex].position = transform.point(from: point)
+                        handleIndex += 1
+                    }
+                }
+                for point in segmentLaser.endEndpoint.points {
+                    if handleIndex < pathPointHandles.count {
+                        pathPointHandles[handleIndex].position = transform.point(from: point)
+                        handleIndex += 1
+                    }
+                }
+            }
+        }
+
+        // Update button anchor handles
+        for button in level.buttons {
+            if handleIndex < pathPointHandles.count {
+                pathPointHandles[handleIndex].position = transform.point(from: button.position)
+                handleIndex += 1
+            }
+        }
+    }
+
+    private func updatePathPointHandlesVisibility() {
+        for handle in pathPointHandles {
+            handle.isHidden = !showPathPointHandles
+        }
     }
     
     private func addButtons() {
@@ -949,6 +1117,83 @@ extension LaserObstacle {
 }
 
 // NOTE: BaseLaserNode and laser subclasses remain in GameScene.swift for now.
+
+// MARK: - Path Point Handle Node
+
+final class PathPointHandleNode: SKNode {
+    enum HandleType {
+        case endpoint
+        case buttonAnchor
+    }
+
+    let handleType: HandleType
+    let laserID: String?
+    let pointIndex: Int?
+    let buttonID: String?
+
+    private let circle: SKShapeNode
+    private let innerDot: SKShapeNode
+
+    init(type: HandleType, laserID: String? = nil, pointIndex: Int? = nil, buttonID: String? = nil) {
+        self.handleType = type
+        self.laserID = laserID
+        self.pointIndex = pointIndex
+        self.buttonID = buttonID
+
+        circle = SKShapeNode(circleOfRadius: 12)
+        innerDot = SKShapeNode(circleOfRadius: 4)
+
+        super.init()
+
+        // Outer circle
+        circle.fillColor = SKColor.white.withAlphaComponent(0.25)
+        circle.strokeColor = SKColor.white.withAlphaComponent(0.85)
+        circle.lineWidth = 2
+        circle.zPosition = 100
+        addChild(circle)
+
+        // Inner dot
+        switch type {
+        case .endpoint:
+            innerDot.fillColor = SKColor.cyan.withAlphaComponent(0.9)
+        case .buttonAnchor:
+            innerDot.fillColor = SKColor.magenta.withAlphaComponent(0.9)
+        }
+        innerDot.strokeColor = .clear
+        innerDot.zPosition = 101
+        addChild(innerDot)
+
+        // Pulse animation
+        let pulse = SKAction.sequence([
+            SKAction.scale(to: 1.15, duration: 0.6),
+            SKAction.scale(to: 1.0, duration: 0.6)
+        ])
+        circle.run(SKAction.repeatForever(pulse))
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func setHighlighted(_ highlighted: Bool) {
+        if highlighted {
+            circle.fillColor = SKColor.yellow.withAlphaComponent(0.5)
+            circle.strokeColor = SKColor.yellow.withAlphaComponent(1.0)
+            circle.lineWidth = 3
+        } else {
+            circle.fillColor = SKColor.white.withAlphaComponent(0.25)
+            circle.strokeColor = SKColor.white.withAlphaComponent(0.85)
+            circle.lineWidth = 2
+        }
+    }
+
+    func contains(point: CGPoint, in scene: SKScene) -> Bool {
+        let local = convert(point, from: scene)
+        let dx = local.x
+        let dy = local.y
+        return (dx * dx + dy * dy) <= (20 * 20) // Slightly larger hit area for easier selection
+    }
+}
 
 // MARK: - Layout Transform
 
