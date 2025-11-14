@@ -89,7 +89,21 @@ struct LevelImportManager {
         let normalized = input
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
-        guard let decoded = Data(base64Encoded: normalized) ?? Data(base64Encoded: normalized + padding(for: normalized)) else {
+
+        // Try decoding without padding first
+        if let decoded = Data(base64Encoded: normalized) {
+            return decoded
+        }
+
+        // Try with padding as fallback for malformed Base64
+        let padded = normalized + padding(for: normalized)
+        #if DEBUG
+        if !padding(for: normalized).isEmpty {
+            print("⚠️ Base64 input missing padding, adding \(padding(for: normalized).count) characters")
+        }
+        #endif
+
+        guard let decoded = Data(base64Encoded: padded) else {
             throw ImportError.invalidBase64
         }
         return decoded
