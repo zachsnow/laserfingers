@@ -85,51 +85,264 @@ struct Level: Identifiable, Codable, Hashable {
         let effects: [Effect]
     }
     
-    struct Laser: Identifiable, Codable, Hashable {
-        struct CadenceStep: Codable, Hashable {
-            enum State: String, Codable {
-                case on
-                case off
+    // MARK: - Laser Types
+
+    struct CadenceStep: Codable, Hashable {
+        enum State: String, Codable {
+            case on
+            case off
+        }
+
+        let state: State
+        /// Duration to stay in the given state. Nil = hold indefinitely.
+        let duration: Double?
+    }
+
+    struct EndpointPath: Codable, Hashable {
+        let points: [NormalizedPoint]
+        /// Seconds for a full round-trip cycle (point[0] -> point[1] -> point[0]).
+        /// Nil for stationary (single point), required for moving (2 points).
+        let cycleSeconds: Double?
+        /// Starting position along path, 0-1. Defaults to 0.
+        let t: Double
+
+        private enum CodingKeys: String, CodingKey {
+            case points
+            case cycleSeconds
+            case t
+        }
+
+        init(points: [NormalizedPoint], cycleSeconds: Double? = nil, t: Double = 0) {
+            self.points = points
+            self.cycleSeconds = cycleSeconds
+            self.t = t
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            points = try container.decode([NormalizedPoint].self, forKey: .points)
+            cycleSeconds = try container.decodeIfPresent(Double.self, forKey: .cycleSeconds)
+            t = try container.decodeIfPresent(Double.self, forKey: .t) ?? 0.0
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(points, forKey: .points)
+            try container.encodeIfPresent(cycleSeconds, forKey: .cycleSeconds)
+            if t != 0.0 {
+                try container.encode(t, forKey: .t)
             }
-            
-            let state: State
-            /// Duration to stay in the given state. Nil = hold indefinitely.
-            let duration: Double?
         }
-        
-        enum Kind: Hashable {
-            case sweeper(Sweeper)
-            case rotor(Rotor)
-            case segment(Segment)
+
+        var isStationary: Bool {
+            return points.count == 1
         }
-        
-        struct Sweeper: Codable, Hashable {
-            /// Normalized endpoints measured in the short-axis coordinate space.
-            let start: NormalizedPoint
-            let end: NormalizedPoint
-            /// Seconds to travel from start to end before reversing.
-            let sweepSeconds: Double
-        }
-        
-        struct Rotor: Codable, Hashable {
-            let center: NormalizedPoint
-            /// Degrees per second. Positive = clockwise.
-            let speedDegreesPerSecond: Double
-            let initialAngleDegrees: Double
-        }
-        
-        struct Segment: Codable, Hashable {
-            let start: NormalizedPoint
-            let end: NormalizedPoint
-        }
-        
+    }
+
+    class Laser: Identifiable, Codable, Hashable {
         let id: String
         let color: String
         /// Normalized beam thickness relative to the shortest scene edge.
         let thickness: CGFloat
         /// Cadence applied to the firing state. Nil or empty => always on.
         let cadence: [CadenceStep]?
-        let kind: Kind
+        var enabled: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case type
+            case id
+            case color
+            case thickness
+            case cadence
+            case enabled
+        }
+
+        private enum LaserType: String, Codable {
+            case ray
+            case segment
+        }
+
+        init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?, enabled: Bool = true) {
+            self.id = id
+            self.color = color
+            self.thickness = thickness
+            self.cadence = cadence
+            self.enabled = enabled
+        }
+
+        required init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(String.self, forKey: .id)
+            color = try container.decode(String.self, forKey: .color)
+            thickness = try container.decode(CGFloat.self, forKey: .thickness)
+            cadence = try container.decodeIfPresent([CadenceStep].self, forKey: .cadence)
+            enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(id, forKey: .id)
+            try container.encode(color, forKey: .color)
+            try container.encode(thickness, forKey: .thickness)
+            try container.encodeIfPresent(cadence, forKey: .cadence)
+            try container.encode(enabled, forKey: .enabled)
+        }
+
+        static func == (lhs: Laser, rhs: Laser) -> Bool {
+            return lhs.id == rhs.id &&
+                   lhs.color == rhs.color &&
+                   lhs.thickness == rhs.thickness &&
+                   lhs.cadence == rhs.cadence &&
+                   lhs.enabled == rhs.enabled
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(id)
+            hasher.combine(color)
+            hasher.combine(thickness)
+            hasher.combine(cadence)
+            hasher.combine(enabled)
+        }
+
+        // Factory method for decoding the correct subclass
+        static func decode(from decoder: Decoder) throws -> Laser {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let type = try container.decode(LaserType.self, forKey: .type)
+
+            switch type {
+            case .ray:
+                return try RayLaser(from: decoder)
+            case .segment:
+                return try SegmentLaser(from: decoder)
+            }
+        }
+
+        // Encode with type discrimination
+        func encodeWithType(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+
+            if self is RayLaser {
+                try container.encode(LaserType.ray, forKey: .type)
+            } else if self is SegmentLaser {
+                try container.encode(LaserType.segment, forKey: .type)
+            }
+
+            try encode(to: encoder)
+        }
+    }
+
+    final class RayLaser: Laser {
+        let endpoint: EndpointPath
+        /// Initial angle in radians. If nil, defaults to 0 for stationary endpoints or perpendicular to path for moving endpoints.
+        let initialAngle: Double?
+        /// Rotation speed in radians per second.
+        let rotationSpeed: Double
+
+        private enum CodingKeys: String, CodingKey {
+            case endpoint
+            case initialAngle
+            case rotationSpeed
+        }
+
+        init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
+             endpoint: EndpointPath, initialAngle: Double?, rotationSpeed: Double, enabled: Bool = true) {
+            self.endpoint = endpoint
+            self.initialAngle = initialAngle
+            self.rotationSpeed = rotationSpeed
+            super.init(id: id, color: color, thickness: thickness, cadence: cadence, enabled: enabled)
+        }
+
+        required init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            endpoint = try container.decode(EndpointPath.self, forKey: .endpoint)
+            initialAngle = try container.decodeIfPresent(Double.self, forKey: .initialAngle)
+            rotationSpeed = try container.decode(Double.self, forKey: .rotationSpeed)
+            try super.init(from: decoder)
+        }
+
+        override func encode(to encoder: Encoder) throws {
+            try super.encode(to: encoder)
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(endpoint, forKey: .endpoint)
+            try container.encodeIfPresent(initialAngle, forKey: .initialAngle)
+            try container.encode(rotationSpeed, forKey: .rotationSpeed)
+        }
+
+        static func == (lhs: RayLaser, rhs: RayLaser) -> Bool {
+            return (lhs as Laser) == (rhs as Laser) &&
+                   lhs.endpoint == rhs.endpoint &&
+                   lhs.initialAngle == rhs.initialAngle &&
+                   lhs.rotationSpeed == rhs.rotationSpeed
+        }
+
+        override func hash(into hasher: inout Hasher) {
+            super.hash(into: &hasher)
+            hasher.combine(endpoint)
+            hasher.combine(initialAngle)
+            hasher.combine(rotationSpeed)
+        }
+
+        /// Get the effective initial angle: explicit value, or smart default based on endpoint path.
+        func effectiveInitialAngle() -> Double {
+            if let angle = initialAngle {
+                return angle
+            }
+
+            // Default: 0 for stationary, perpendicular to path for moving
+            if endpoint.isStationary {
+                return 0.0
+            } else if endpoint.points.count >= 2 {
+                let p0 = endpoint.points[0]
+                let p1 = endpoint.points[1]
+                let dx = p1.x - p0.x
+                let dy = p1.y - p0.y
+                return atan2(dy, dx)  // Path angle (perpendicular is automatically handled by vertical beam)
+            }
+            return 0.0
+        }
+    }
+
+    final class SegmentLaser: Laser {
+        let startEndpoint: EndpointPath
+        let endEndpoint: EndpointPath
+
+        private enum CodingKeys: String, CodingKey {
+            case startEndpoint
+            case endEndpoint
+        }
+
+        init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
+             startEndpoint: EndpointPath, endEndpoint: EndpointPath, enabled: Bool = true) {
+            self.startEndpoint = startEndpoint
+            self.endEndpoint = endEndpoint
+            super.init(id: id, color: color, thickness: thickness, cadence: cadence, enabled: enabled)
+        }
+
+        required init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            startEndpoint = try container.decode(EndpointPath.self, forKey: .startEndpoint)
+            endEndpoint = try container.decode(EndpointPath.self, forKey: .endEndpoint)
+            try super.init(from: decoder)
+        }
+
+        override func encode(to encoder: Encoder) throws {
+            try super.encode(to: encoder)
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(startEndpoint, forKey: .startEndpoint)
+            try container.encode(endEndpoint, forKey: .endEndpoint)
+        }
+
+        static func == (lhs: SegmentLaser, rhs: SegmentLaser) -> Bool {
+            return (lhs as Laser) == (rhs as Laser) &&
+                   lhs.startEndpoint == rhs.startEndpoint &&
+                   lhs.endEndpoint == rhs.endEndpoint
+        }
+
+        override func hash(into hasher: inout Hasher) {
+            super.hash(into: &hasher)
+            hasher.combine(startEndpoint)
+            hasher.combine(endEndpoint)
+        }
     }
     
     let id: String
@@ -196,7 +409,17 @@ struct Level: Identifiable, Codable, Hashable {
         lives = try container.decodeIfPresent(Int.self, forKey: .lives)
         devices = try container.decodeIfPresent([Device].self, forKey: .devices)
         buttons = try container.decode([Button].self, forKey: .buttons)
-        lasers = try container.decode([Laser].self, forKey: .lasers)
+
+        // Decode lasers using factory method
+        var lasersContainer = try container.nestedUnkeyedContainer(forKey: .lasers)
+        var decodedLasers: [Laser] = []
+        while !lasersContainer.isAtEnd {
+            let laserDecoder = try lasersContainer.superDecoder()
+            let laser = try Laser.decode(from: laserDecoder)
+            decodedLasers.append(laser)
+        }
+        lasers = decodedLasers
+
         unlocks = try container.decodeIfPresent([String].self, forKey: .unlocks)
         backgroundImage = try container.decodeIfPresent(String.self, forKey: .backgroundImage)
         uuid = try container.decodeIfPresent(UUID.self, forKey: .uuid)
@@ -212,7 +435,14 @@ struct Level: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(lives, forKey: .lives)
         try container.encodeIfPresent(devices, forKey: .devices)
         try container.encode(buttons, forKey: .buttons)
-        try container.encode(lasers, forKey: .lasers)
+
+        // Encode lasers with type discrimination
+        var lasersContainer = container.nestedUnkeyedContainer(forKey: .lasers)
+        for laser in lasers {
+            let laserEncoder = lasersContainer.superEncoder()
+            try laser.encodeWithType(to: laserEncoder)
+        }
+
         try container.encodeIfPresent(unlocks, forKey: .unlocks)
         try container.encodeIfPresent(backgroundImage, forKey: .backgroundImage)
         try container.encodeIfPresent(uuid, forKey: .uuid)
@@ -335,48 +565,3 @@ extension Level.Button.HitArea.Shape: Codable {
     }
 }
 
-extension Level.Laser.Kind: Codable {
-    private enum CodingKeys: String, CodingKey {
-        case type
-        case sweeper
-        case rotor
-        case segment
-    }
-    
-    private enum KindType: String, Codable {
-        case sweeper
-        case rotor
-        case segment
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(KindType.self, forKey: .type)
-        switch type {
-        case .sweeper:
-            let value = try container.decode(Level.Laser.Sweeper.self, forKey: .sweeper)
-            self = .sweeper(value)
-        case .rotor:
-            let value = try container.decode(Level.Laser.Rotor.self, forKey: .rotor)
-            self = .rotor(value)
-        case .segment:
-            let value = try container.decode(Level.Laser.Segment.self, forKey: .segment)
-            self = .segment(value)
-        }
-    }
-    
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .sweeper(let sweeper):
-            try container.encode(KindType.sweeper, forKey: .type)
-            try container.encode(sweeper, forKey: .sweeper)
-        case .rotor(let rotor):
-            try container.encode(KindType.rotor, forKey: .type)
-            try container.encode(rotor, forKey: .rotor)
-        case .segment(let segment):
-            try container.encode(KindType.segment, forKey: .type)
-            try container.encode(segment, forKey: .segment)
-        }
-    }
-}

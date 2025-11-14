@@ -46,32 +46,35 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     enum FileMenuItem: String, CaseIterable, Identifiable {
         case settings
         case options
+        case source
         case share
         case reset
         case exit
-        
+
         var id: String { rawValue }
-        
+
         var label: String {
             switch self {
             case .settings: return "Settings"
             case .options: return "Options"
+            case .source: return "Source"
             case .share: return "Share"
             case .reset: return "Reset"
             case .exit: return "Exit"
             }
         }
-        
+
         var iconName: String {
             switch self {
             case .settings: return "gear"
             case .options: return "slider.horizontal.3"
+            case .source: return "doc.text"
             case .share: return "square.and.arrow.up"
             case .reset: return "arrow.counterclockwise"
             case .exit: return "xmark.circle"
             }
         }
-        
+
         var isDestructive: Bool {
             switch self {
             case .reset, .exit:
@@ -291,7 +294,46 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     var shareURL: URL? {
         URL(string: "https://laserfingers.com/level/\(workingLevel.id)")
     }
-    
+
+    var levelJSON: String {
+        let level = Self.makeLevel(from: workingLevel)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(level),
+              let json = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return json
+    }
+
+    func loadLevel(fromJSON json: String) throws {
+        guard let data = json.data(using: .utf8) else {
+            throw NSError(domain: "LevelEditor", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON encoding"])
+        }
+        let decoder = JSONDecoder()
+        let level = try decoder.decode(Level.self, from: data)
+
+        // Convert to snapshot and update working level
+        pushUndoState()
+        let background: EditorLevelSnapshot.BackgroundStyle
+        if let bgImage = level.backgroundImage {
+            background = .asset(name: bgImage)
+        } else {
+            background = .gradient
+        }
+        workingLevel = EditorLevelSnapshot(
+            id: level.id,
+            title: level.title,
+            description: level.description,
+            buttons: level.buttons,
+            lasers: level.lasers,
+            background: background,
+            uuid: level.uuid
+        )
+        redoStack.removeAll()
+        applySnapshotToScene()
+    }
+
     func selectTool(_ tool: Tool) {
         guard tool != currentTool else { return }
         currentTool = tool
@@ -579,44 +621,51 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     
     private func addSweeper(from start: Level.NormalizedPoint, to end: Level.NormalizedPoint) {
         guard !pointsAreTooClose(start, end) else { return }
-        let sweeper = Level.Laser.Sweeper(start: start, end: end, sweepSeconds: 3.5)
-        let laser = Level.Laser(
+        // Sweeper -> Ray with moving endpoint (angle defaults to perpendicular)
+        let endpointPath = Level.EndpointPath(points: [start, end], cycleSeconds: 7.0, t: 0)
+        let laser = Level.RayLaser(
             id: UUID().uuidString,
             color: "FFB703",
             thickness: 0.018,
             cadence: nil,
-            kind: .sweeper(sweeper)
+            endpoint: endpointPath,
+            initialAngle: nil,  // Default to perpendicular
+            rotationSpeed: 0,
+            enabled: true
         )
         appendLaser(laser)
     }
     
     private func addSegment(from start: Level.NormalizedPoint, to end: Level.NormalizedPoint) {
         guard !pointsAreTooClose(start, end) else { return }
-        let segment = Level.Laser.Segment(start: start, end: end)
-        let laser = Level.Laser(
+        // Segment -> Segment with stationary endpoints
+        let startPath = Level.EndpointPath(points: [start])
+        let endPath = Level.EndpointPath(points: [end])
+        let laser = Level.SegmentLaser(
             id: UUID().uuidString,
             color: "8ECAE6",
             thickness: 0.015,
             cadence: nil,
-            kind: .segment(segment)
+            startEndpoint: startPath,
+            endEndpoint: endPath,
+            enabled: true
         )
         appendLaser(laser)
     }
     
     private func addRotor(center: Level.NormalizedPoint, reference: Level.NormalizedPoint) {
         guard !pointsAreTooClose(center, reference) else { return }
-        let angleRadians = atan2(reference.y - center.y, reference.x - center.x)
-        let rotor = Level.Laser.Rotor(
-            center: center,
-            speedDegreesPerSecond: 90,
-            initialAngleDegrees: angleRadians * 180 / .pi
-        )
-        let laser = Level.Laser(
+        // Rotor -> Ray with stationary endpoint (angle defaults to 0)
+        let endpointPath = Level.EndpointPath(points: [center])
+        let laser = Level.RayLaser(
             id: UUID().uuidString,
             color: "F72585",
             thickness: 0.012,
             cadence: nil,
-            kind: .rotor(rotor)
+            endpoint: endpointPath,
+            initialAngle: nil,  // Default to 0
+            rotationSpeed: 90 * .pi / 180,  // Convert degrees/sec to radians/sec
+            enabled: true
         )
         appendLaser(laser)
     }
@@ -740,18 +789,22 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         var sweep: Double?
         var speed: Double?
         var angle: Double?
-        switch laser.kind {
-        case .sweeper(let sweeper):
-            kind = .sweeper
-            sweep = Double(sweeper.sweepSeconds)
-        case .rotor(let rotor):
-            kind = .rotor
-            speed = Double(rotor.speedDegreesPerSecond)
-            angle = Double(rotor.initialAngleDegrees)
-        case .segment:
+
+        if let rayLaser = laser as? Level.RayLaser {
+            // Determine if this is a sweeper (moving endpoint) or rotor (stationary)
+            if rayLaser.endpoint.isStationary {
+                kind = .rotor
+                speed = Double(rayLaser.rotationSpeed * 180 / .pi)  // Convert rad/s to deg/s
+                let effectiveAngle = rayLaser.effectiveInitialAngle()
+                angle = Double(effectiveAngle * 180 / .pi)  // Convert rad to degrees
+            } else {
+                kind = .sweeper
+                sweep = rayLaser.endpoint.cycleSeconds
+            }
+        } else {
             kind = .segment
-            break
         }
+
         return LaserSettingsState(
             kind: kind,
             laserID: laser.id,
@@ -771,31 +824,58 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         pushUndoState()
         let laser = workingLevel.lasers[index]
         let thickness = CGFloat(max(0.001, state.thickness))
-        let updatedKind: Level.Laser.Kind
-        switch laser.kind {
-        case .sweeper(let sweeper):
-            let sweepSeconds = CGFloat(max(0.1, state.sweepSeconds ?? Double(sweeper.sweepSeconds)))
-            let updated = Level.Laser.Sweeper(start: sweeper.start, end: sweeper.end, sweepSeconds: sweepSeconds)
-            updatedKind = .sweeper(updated)
-        case .rotor(let rotor):
-            let speed = CGFloat(state.speedDegreesPerSecond ?? Double(rotor.speedDegreesPerSecond))
-            let angle = CGFloat(state.initialAngleDegrees ?? Double(rotor.initialAngleDegrees))
-            let updated = Level.Laser.Rotor(
-                center: rotor.center,
-                speedDegreesPerSecond: speed,
-                initialAngleDegrees: angle
+        let updatedLaser: Level.Laser
+
+        if let rayLaser = laser as? Level.RayLaser {
+            if rayLaser.endpoint.isStationary {
+                // Rotor case
+                let speed = Double(state.speedDegreesPerSecond ?? (rayLaser.rotationSpeed * 180 / .pi))
+                let effectiveAngle = rayLaser.effectiveInitialAngle()
+                let angle = Double(state.initialAngleDegrees ?? (effectiveAngle * 180 / .pi))
+                updatedLaser = Level.RayLaser(
+                    id: state.laserID,
+                    color: state.color,
+                    thickness: thickness,
+                    cadence: laser.cadence,
+                    endpoint: rayLaser.endpoint,
+                    initialAngle: angle * .pi / 180,
+                    rotationSpeed: speed * .pi / 180,
+                    enabled: laser.enabled
+                )
+            } else {
+                // Sweeper case - preserve nil angle
+                let sweepSeconds = max(0.1, state.sweepSeconds ?? rayLaser.endpoint.cycleSeconds ?? 7.0)
+                let updatedPath = Level.EndpointPath(
+                    points: rayLaser.endpoint.points,
+                    cycleSeconds: sweepSeconds,
+                    t: rayLaser.endpoint.t
+                )
+                updatedLaser = Level.RayLaser(
+                    id: state.laserID,
+                    color: state.color,
+                    thickness: thickness,
+                    cadence: laser.cadence,
+                    endpoint: updatedPath,
+                    initialAngle: rayLaser.initialAngle,  // Preserve nil
+                    rotationSpeed: rayLaser.rotationSpeed,
+                    enabled: laser.enabled
+                )
+            }
+        } else if let segmentLaser = laser as? Level.SegmentLaser {
+            // Segment case - no special settings to apply
+            updatedLaser = Level.SegmentLaser(
+                id: state.laserID,
+                color: state.color,
+                thickness: thickness,
+                cadence: laser.cadence,
+                startEndpoint: segmentLaser.startEndpoint,
+                endEndpoint: segmentLaser.endEndpoint,
+                enabled: laser.enabled
             )
-            updatedKind = .rotor(updated)
-        case .segment(let segment):
-            updatedKind = .segment(segment)
+        } else {
+            return
         }
-        let updatedLaser = Level.Laser(
-            id: state.laserID,
-            color: state.color,
-            thickness: thickness,
-            cadence: laser.cadence,
-            kind: updatedKind
-        )
+
         workingLevel.lasers[index] = updatedLaser
         redoStack.removeAll()
         applySnapshotToScene()

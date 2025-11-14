@@ -1,7 +1,7 @@
 {
-  "id": "tutorial-sweeper-02",
-  "title": "Crossing Beams",
-  "description": "Survive two opposite sweepers while charging the center node.",
+  "id": "moving-test",
+  "title": "Moving Lasers Test",
+  "description": "Test level for new moving laser capabilities",
   "backgroundImage": "../../Images/bg.jpg",
   "maxTouches": 2,
   "buttons": [
@@ -9,12 +9,12 @@
       "id": "center-button",
       "position": {
         "x": 0.0,
-        "y": -0.2
+        "y": 0.0
       },
       "timing": {
-        "chargeSeconds": 1.5,
+        "chargeSeconds": 2.0,
         "holdSeconds": 0,
-        "drainSeconds": 1.5
+        "drainSeconds": 2.0
       },
       "hitLogic": "any",
       "required": true,
@@ -28,7 +28,7 @@
           "id": "center-hit",
           "shape": {
             "type": "circle",
-            "radius": 0.3
+            "radius": 0.25
           },
           "offset": {
             "x": 0.0,
@@ -41,46 +41,59 @@
   ],
   "lasers": [
     {
-      "id": "sweeper-forward",
+      "id": "moving-ray",
       "color": "#48CAE4",
-      "thickness": 0.018,
+      "thickness": 0.015,
       "enabled": true,
       "type": "ray",
       "endpoint": {
         "points": [
           {
-            "x": -1.0,
-            "y": 0.0
+            "x": -0.8,
+            "y": 0.5
           },
           {
-            "x": 1.0,
-            "y": 0.0
+            "x": 0.8,
+            "y": 0.5
           }
         ],
-        "cycleSeconds": 4.0
+        "cycleSeconds": 6.0
       },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.5
     },
     {
-      "id": "sweeper-reverse",
-      "color": "#90E0EF",
-      "thickness": 0.018,
+      "id": "moving-segment",
+      "color": "#F72585",
+      "thickness": 0.012,
       "enabled": true,
-      "type": "ray",
-      "endpoint": {
+      "type": "segment",
+      "startEndpoint": {
         "points": [
           {
-            "x": 1.0,
-            "y": 0.0
+            "x": -0.9,
+            "y": -0.5
           },
           {
-            "x": -1.0,
-            "y": 0.0
+            "x": -0.3,
+            "y": -0.5
           }
         ],
-        "cycleSeconds": 4.0
+        "cycleSeconds": 5.0
       },
-      "rotationSpeed": 0.0
+      "endEndpoint": {
+        "points": [
+          {
+            "x": 0.3,
+            "y": -0.5
+          },
+          {
+            "x": 0.9,
+            "y": -0.5
+          }
+        ],
+        "cycleSeconds": 4.0,
+        "t": 0.5
+      }
     }
   ],
   "unlocks": []

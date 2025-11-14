@@ -20,6 +20,8 @@ struct LevelEditorView: View {
                 LevelSettingsSheet(viewModel: viewModel)
             case .options:
                 EditorOptionsSheet(viewModel: viewModel)
+            case .source:
+                ViewSourceSheet(viewModel: viewModel)
             case .share:
                 LevelShareSheet(url: viewModel.shareURL)
             default:
@@ -751,6 +753,73 @@ private struct HitAreaSettingsView: View {
         case .polygon:
             Text("Polygon editing not yet available.")
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct ViewSourceSheet: View {
+    @ObservedObject var viewModel: LevelEditorViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var editedJSON: String
+    @State private var errorMessage: String?
+
+    init(viewModel: LevelEditorViewModel) {
+        self.viewModel = viewModel
+        _editedJSON = State(initialValue: viewModel.levelJSON)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                if let error = errorMessage {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.yellow)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Dismiss") {
+                            errorMessage = nil
+                        }
+                        .font(.caption)
+                    }
+                    .padding()
+                    .background(Color(uiColor: .systemBackground))
+                    .overlay(Rectangle().frame(height: 1).foregroundStyle(.separator), alignment: .bottom)
+                }
+
+                TextEditor(text: $editedJSON)
+                    .font(.system(.caption, design: .monospaced))
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+            }
+            .navigationTitle("Source")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Save") {
+                        saveJSON()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    private func saveJSON() {
+        do {
+            try viewModel.loadLevel(fromJSON: editedJSON)
+            dismiss()
+        } catch {
+            errorMessage = "Invalid JSON: \(error.localizedDescription)"
         }
     }
 }

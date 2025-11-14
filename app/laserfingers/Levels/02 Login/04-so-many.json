@@ -44,96 +44,106 @@
       "id": "intro-sweeper-1",
       "color": "#48CAE4",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": {
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
             "x": -0.95,
             "y": 0.2
           },
-          "end": {
+          {
             "x": 0.95,
             "y": 0.2
-          },
-          "sweepSeconds": 2.4
-        }
-      }
+          }
+        ],
+        "cycleSeconds": 4.8
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "intro-sweeper-2",
       "color": "#48CAE4",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": {
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
             "x": -0.95,
             "y": 0.2
           },
-          "end": {
+          {
             "x": 0,
             "y": 0.2
-          },
-          "sweepSeconds": 2.4
-        }
-      }
+          }
+        ],
+        "cycleSeconds": 4.8
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "intro-sweeper-3",
       "color": "#48CAE4",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": {
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
             "x": -0.95,
             "y": 0.2
           },
-          "end": {
+          {
             "x": 0,
             "y": 0.2
-          },
-          "sweepSeconds": 2.4
-        }
-      }
+          }
+        ],
+        "cycleSeconds": 4.8
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "intro-sweeper-4",
       "color": "#48CAE4",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": {
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
             "x": -0.95,
-            "y":-1
-          },
-          "end": {
-            "x": 0.95,
             "y": -1
           },
-          "sweepSeconds": 2.4
-        }
-      }
+          {
+            "x": 0.95,
+            "y": -1
+          }
+        ],
+        "cycleSeconds": 4.8
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "intro-sweeper-5",
       "color": "#48CAE4",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": {
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
             "x": -0.95,
             "y": 1
           },
-          "end": {
+          {
             "x": 0.95,
             "y": -1
-          },
-          "sweepSeconds": 2.4
-        }
-      }
+          }
+        ],
+        "cycleSeconds": 4.8
+      },
+      "rotationSpeed": 0.0
     }
   ],
   "unlocks": []

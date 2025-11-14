@@ -6,7 +6,10 @@
   "buttons": [
     {
       "id": "gate-lock",
-      "position": { "x": 0.0, "y": 0.0 },
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
       "timing": {
         "chargeSeconds": 1.4,
         "holdSeconds": 0.2,
@@ -26,7 +29,10 @@
             "type": "circle",
             "radius": 0.28
           },
-          "offset": { "x": 0.0, "y": 0.0 }
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
         }
       ],
       "effects": []
@@ -37,40 +43,64 @@
       "id": "lane-fast",
       "color": "#2AD863",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": { "x": -1.0, "y": 0.0 },
-          "end": { "x": 1.0, "y": 0.0 },
-          "sweepSeconds": 1.8
-        }
-      }
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
+            "x": -1.0,
+            "y": 0.0
+          },
+          {
+            "x": 1.0,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": 3.6
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "lane-medium",
       "color": "#48CAE4",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": { "x": -1.0, "y": 0.15 },
-          "end": { "x": 1.0, "y": 0.15 },
-          "sweepSeconds": 2.4
-        }
-      }
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
+            "x": -1.0,
+            "y": 0.15
+          },
+          {
+            "x": 1.0,
+            "y": 0.15
+          }
+        ],
+        "cycleSeconds": 4.8
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "lane-slow",
       "color": "#C77DFF",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": { "x": -1.0, "y": -0.15 },
-          "end": { "x": 1.0, "y": -0.15 },
-          "sweepSeconds": 3.1
-        }
-      }
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
+            "x": -1.0,
+            "y": -0.15
+          },
+          {
+            "x": 1.0,
+            "y": -0.15
+          }
+        ],
+        "cycleSeconds": 6.2
+      },
+      "rotationSpeed": 0.0
     }
   ],
   "backgroundImage": "../../Images/bg.jpg",

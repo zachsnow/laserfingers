@@ -7,10 +7,9 @@ struct GameSettings: Codable {
     var infiniteSlotsEnabled: Bool = false
     var glowEnabled: Bool = true
     var blurEnabled: Bool = true
-    var afterimageEnabled: Bool = true
-    
+
     init() {}
-    
+
     private enum CodingKeys: String, CodingKey {
         case soundEnabled
         case hapticsEnabled
@@ -18,9 +17,8 @@ struct GameSettings: Codable {
         case infiniteSlotsEnabled
         case glowEnabled
         case blurEnabled
-        case afterimageEnabled
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         soundEnabled = try container.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? true
@@ -29,9 +27,8 @@ struct GameSettings: Codable {
         infiniteSlotsEnabled = try container.decodeIfPresent(Bool.self, forKey: .infiniteSlotsEnabled) ?? false
         glowEnabled = try container.decodeIfPresent(Bool.self, forKey: .glowEnabled) ?? true
         blurEnabled = try container.decodeIfPresent(Bool.self, forKey: .blurEnabled) ?? true
-        afterimageEnabled = try container.decodeIfPresent(Bool.self, forKey: .afterimageEnabled) ?? true
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(soundEnabled, forKey: .soundEnabled)
@@ -40,7 +37,6 @@ struct GameSettings: Codable {
         try container.encode(infiniteSlotsEnabled, forKey: .infiniteSlotsEnabled)
         try container.encode(glowEnabled, forKey: .glowEnabled)
         try container.encode(blurEnabled, forKey: .blurEnabled)
-        try container.encode(afterimageEnabled, forKey: .afterimageEnabled)
     }
 }
 

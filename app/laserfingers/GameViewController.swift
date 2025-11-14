@@ -128,8 +128,7 @@ struct SettingsView: View {
                         .font(.headline)
                     VisualEffectsToggleList(
                         glowEnabled: $coordinator.settings.glowEnabled,
-                        blurEnabled: $coordinator.settings.blurEnabled,
-                        afterimageEnabled: $coordinator.settings.afterimageEnabled
+                        blurEnabled: $coordinator.settings.blurEnabled
                     )
                 }
                 Spacer()
@@ -143,15 +142,12 @@ struct SettingsView: View {
 struct VisualEffectsToggleList: View {
     @Binding var glowEnabled: Bool
     @Binding var blurEnabled: Bool
-    @Binding var afterimageEnabled: Bool
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle("Laser Glow", isOn: $glowEnabled)
                 .toggleStyle(SwitchToggleStyle(tint: .pink))
             Toggle("Bloom Blur", isOn: $blurEnabled)
-                .toggleStyle(SwitchToggleStyle(tint: .pink))
-            Toggle("Afterimages", isOn: $afterimageEnabled)
                 .toggleStyle(SwitchToggleStyle(tint: .pink))
         }
     }
@@ -160,17 +156,15 @@ struct VisualEffectsToggleList: View {
 struct GameplayVisualSettingsSheet: View {
     @Binding var glowEnabled: Bool
     @Binding var blurEnabled: Bool
-    @Binding var afterimageEnabled: Bool
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("Visual Effects") {
                     VisualEffectsToggleList(
                         glowEnabled: $glowEnabled,
-                        blurEnabled: $blurEnabled,
-                        afterimageEnabled: $afterimageEnabled
+                        blurEnabled: $blurEnabled
                     )
                 }
             }
@@ -571,14 +565,12 @@ struct GameplayView: View {
         .sheet(isPresented: $showVisualSettings) {
             GameplayVisualSettingsSheet(
                 glowEnabled: $coordinator.settings.glowEnabled,
-                blurEnabled: $coordinator.settings.blurEnabled,
-                afterimageEnabled: $coordinator.settings.afterimageEnabled
+                blurEnabled: $coordinator.settings.blurEnabled
             )
         }
         .onAppear(perform: applyVisualSettings)
         .onChange(of: coordinator.settings.glowEnabled) { applyVisualSettings() }
         .onChange(of: coordinator.settings.blurEnabled) { applyVisualSettings() }
-        .onChange(of: coordinator.settings.afterimageEnabled) { applyVisualSettings() }
     }
     
     @ViewBuilder
