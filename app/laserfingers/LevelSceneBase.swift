@@ -1707,8 +1707,6 @@ final class RayLaserNode: BaseLaserNode {
         // Use at least 2x diagonal for close endpoints (original behavior)
         let rayLength = max(minRayLength * 2, frameDiagonal * 2)
 
-        AppLog.scene.debug("Ray endpoint distance=\(distanceToCenter) frameSize=(\(transform.frame.width),\(transform.frame.height)) rayLength=\(rayLength)")
-
         configureLineLaser(start: CGPoint(x: 0, y: -rayLength / 2), end: CGPoint(x: 0, y: rayLength / 2), thickness: thickness)
 
         lightNode.position = .zero
@@ -1716,7 +1714,7 @@ final class RayLaserNode: BaseLaserNode {
         position = endpointPos
 
         // Update rotation
-        let baseAngle = laser.effectiveInitialAngle()
+        let baseAngle = laser.initialAngle
         let rotation: CGFloat
         if motionActive && laser.rotationSpeed != 0 {
             rotation = CGFloat(baseAngle + laser.rotationSpeed * time)
@@ -1724,10 +1722,6 @@ final class RayLaserNode: BaseLaserNode {
             rotation = CGFloat(baseAngle)
         }
         zRotation = rotation
-
-        // Explicitly set rotation for child nodes to ensure they rotate properly
-        glowShell.zRotation = rotation
-        beam.zRotation = rotation
     }
 
     private func startGlowShimmer() {

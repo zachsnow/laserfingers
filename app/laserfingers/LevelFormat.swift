@@ -238,8 +238,8 @@ struct Level: Identifiable, Codable, Hashable {
 
     final class RayLaser: Laser {
         let endpoint: EndpointPath
-        /// Initial angle in radians. If nil, defaults to 0 for stationary endpoints or perpendicular to path for moving endpoints.
-        let initialAngle: Double?
+        /// Initial angle in radians. Computed at load time: perpendicular to path for moving endpoints, 0 for stationary.
+        let initialAngle: Double
         /// Rotation speed in radians per second.
         let rotationSpeed: Double
 
@@ -252,7 +252,8 @@ struct Level: Identifiable, Codable, Hashable {
         init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
              endpoint: EndpointPath, initialAngle: Double?, rotationSpeed: Double, enabled: Bool = true) {
             self.endpoint = endpoint
-            self.initialAngle = initialAngle
+            // Compute default if not provided
+            self.initialAngle = initialAngle ?? Self.computeDefaultAngle(for: endpoint)
             self.rotationSpeed = rotationSpeed
             super.init(id: id, color: color, thickness: thickness, cadence: cadence, enabled: enabled)
         }
@@ -260,7 +261,9 @@ struct Level: Identifiable, Codable, Hashable {
         required init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             endpoint = try container.decode(EndpointPath.self, forKey: .endpoint)
-            initialAngle = try container.decodeIfPresent(Double.self, forKey: .initialAngle)
+            let explicitAngle = try container.decodeIfPresent(Double.self, forKey: .initialAngle)
+            // Compute default at decode time if not specified
+            initialAngle = explicitAngle ?? Self.computeDefaultAngle(for: endpoint)
             rotationSpeed = try container.decode(Double.self, forKey: .rotationSpeed)
             try super.init(from: decoder)
         }
@@ -269,7 +272,7 @@ struct Level: Identifiable, Codable, Hashable {
             try super.encode(to: encoder)
             var container = encoder.container(keyedBy: CodingKeys.self)
             try container.encode(endpoint, forKey: .endpoint)
-            try container.encodeIfPresent(initialAngle, forKey: .initialAngle)
+            try container.encode(initialAngle, forKey: .initialAngle)
             try container.encode(rotationSpeed, forKey: .rotationSpeed)
         }
 
@@ -288,12 +291,10 @@ struct Level: Identifiable, Codable, Hashable {
             hasher.combine(rotationSpeed)
         }
 
-        /// Get the effective initial angle: explicit value, or smart default based on endpoint path.
-        func effectiveInitialAngle() -> Double {
-            if let angle = initialAngle {
-                return angle
-            }
-
+        /// Compute the default initial angle based on the endpoint path.
+        /// For moving endpoints, returns the perpendicular angle to the path direction.
+        /// For stationary endpoints, returns 0.
+        private static func computeDefaultAngle(for endpoint: EndpointPath) -> Double {
             // Default: 0 for stationary, perpendicular to path for moving
             if endpoint.isStationary {
                 return 0.0
@@ -302,7 +303,12 @@ struct Level: Identifiable, Codable, Hashable {
                 let p1 = endpoint.points[1]
                 let dx = p1.x - p0.x
                 let dy = p1.y - p0.y
-                return atan2(dy, dx)  // Path angle (perpendicular is automatically handled by vertical beam)
+                // Beam is drawn vertically: from (0, -len/2) to (0, +len/2)
+                // zRotation=0 → beam vertical, zRotation=π/2 → beam horizontal
+                // For perpendicular to path: beam angle = path angle
+                // Path going right (0°) → beam vertical (rotation=0°)
+                // Path going up (90°) → beam horizontal (rotation=90°)
+                return atan2(dy, dx)
             }
             return 0.0
         }

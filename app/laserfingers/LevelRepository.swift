@@ -44,6 +44,29 @@ enum LevelRepository {
         let downloadedPack = try loadDownloadedPack(decoder: levelDecoder, device: device)
         return bundlePacks + [downloadedPack]
     }
+
+    static func loadLevel(named resourceName: String, subdirectory: String = "Levels") throws -> Level {
+        guard let url = Bundle.main.url(forResource: resourceName, withExtension: "json", subdirectory: subdirectory) else {
+            throw LoadingError.missingResourceDirectory("\(subdirectory)/\(resourceName).json")
+        }
+
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw LoadingError.unreadableResource(url, error)
+        }
+
+        do {
+            var level = try levelDecoder.decode(Level.self, from: data)
+            level.setDirectory(url.deletingLastPathComponent())
+            return level
+        } catch let error as DecodingError {
+            throw LoadingError.decodeFailure(url, error)
+        } catch {
+            throw LoadingError.unreadableResource(url, error)
+        }
+    }
     
     static func isDownloadedPack(_ pack: LevelPack) -> Bool {
         pack.directoryName == downloadedDirectoryName

@@ -895,8 +895,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             if rayLaser.endpoint.isStationary {
                 kind = .rotor
                 speed = Double(rayLaser.rotationSpeed * 180 / .pi)  // Convert rad/s to deg/s
-                let effectiveAngle = rayLaser.effectiveInitialAngle()
-                angle = Double(effectiveAngle * 180 / .pi)  // Convert rad to degrees
+                angle = Double(rayLaser.initialAngle * 180 / .pi)  // Convert rad to degrees
             } else {
                 kind = .sweeper
                 sweep = rayLaser.endpoint.cycleSeconds
@@ -930,8 +929,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             if rayLaser.endpoint.isStationary {
                 // Rotor case
                 let speed = Double(state.speedDegreesPerSecond ?? (rayLaser.rotationSpeed * 180 / .pi))
-                let effectiveAngle = rayLaser.effectiveInitialAngle()
-                let angle = Double(state.initialAngleDegrees ?? (effectiveAngle * 180 / .pi))
+                let angle = Double(state.initialAngleDegrees ?? (rayLaser.initialAngle * 180 / .pi))
                 updatedLaser = Level.RayLaser(
                     id: state.laserID,
                     color: state.color,

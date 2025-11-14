@@ -59,11 +59,28 @@ public actor LogStore {
     }
 
     public func allEntries() -> [LogEntry] {
-        entries.sorted { $0.timestamp > $1.timestamp }
+        // Only return the most recent 100 entries
+        let sorted = entries.sorted { $0.timestamp > $1.timestamp }
+        let recent = Array(sorted.prefix(100))
+
+        // Prune old entries in the background if needed
+        if sorted.count > 100 {
+            Task.detached(priority: .background) {
+                await self.pruneOldEntries()
+            }
+        }
+
+        return recent
     }
 
     public func clear() {
         entries.removeAll()
+        persist()
+    }
+
+    private func pruneOldEntries() {
+        let sorted = entries.sorted { $0.timestamp > $1.timestamp }
+        entries = Array(sorted.prefix(100))
         persist()
     }
 
