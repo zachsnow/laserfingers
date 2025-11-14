@@ -148,6 +148,15 @@ struct Level: Identifiable, Codable, Hashable {
         let cadence: [CadenceStep]?
         var enabled: Bool
 
+        /// Dynamically dispatched equality check - subclasses override to include their specific properties
+        func isEqual(to other: Laser) -> Bool {
+            return id == other.id &&
+                   color == other.color &&
+                   thickness == other.thickness &&
+                   cadence == other.cadence &&
+                   enabled == other.enabled
+        }
+
         private enum CodingKeys: String, CodingKey {
             case type
             case id
@@ -189,11 +198,7 @@ struct Level: Identifiable, Codable, Hashable {
         }
 
         static func == (lhs: Laser, rhs: Laser) -> Bool {
-            return lhs.id == rhs.id &&
-                   lhs.color == rhs.color &&
-                   lhs.thickness == rhs.thickness &&
-                   lhs.cadence == rhs.cadence &&
-                   lhs.enabled == rhs.enabled
+            return lhs.isEqual(to: rhs)
         }
 
         func hash(into hasher: inout Hasher) {
@@ -268,11 +273,12 @@ struct Level: Identifiable, Codable, Hashable {
             try container.encode(rotationSpeed, forKey: .rotationSpeed)
         }
 
-        static func == (lhs: RayLaser, rhs: RayLaser) -> Bool {
-            return (lhs as Laser) == (rhs as Laser) &&
-                   lhs.endpoint == rhs.endpoint &&
-                   lhs.initialAngle == rhs.initialAngle &&
-                   lhs.rotationSpeed == rhs.rotationSpeed
+        override func isEqual(to other: Laser) -> Bool {
+            guard let otherRay = other as? RayLaser else { return false }
+            return super.isEqual(to: other) &&
+                   endpoint == otherRay.endpoint &&
+                   initialAngle == otherRay.initialAngle &&
+                   rotationSpeed == otherRay.rotationSpeed
         }
 
         override func hash(into hasher: inout Hasher) {
@@ -332,10 +338,11 @@ struct Level: Identifiable, Codable, Hashable {
             try container.encode(endEndpoint, forKey: .endEndpoint)
         }
 
-        static func == (lhs: SegmentLaser, rhs: SegmentLaser) -> Bool {
-            return (lhs as Laser) == (rhs as Laser) &&
-                   lhs.startEndpoint == rhs.startEndpoint &&
-                   lhs.endEndpoint == rhs.endEndpoint
+        override func isEqual(to other: Laser) -> Bool {
+            guard let otherSeg = other as? SegmentLaser else { return false }
+            return super.isEqual(to: other) &&
+                   startEndpoint == otherSeg.startEndpoint &&
+                   endEndpoint == otherSeg.endEndpoint
         }
 
         override func hash(into hasher: inout Hasher) {

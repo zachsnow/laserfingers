@@ -113,41 +113,20 @@ class LevelSceneBase: SKScene {
         
         var updatedLasers: [LaserRuntime] = []
         for laser in newLevel.lasers {
-            // Check if laser changed by comparing subclass-specific properties
-            let laserChanged: Bool
-            if let oldRuntime = oldLaserMap[laser.id] {
-                // Compare based on actual laser type
-                if let newRay = laser as? Level.RayLaser, let oldRay = oldRuntime.spec as? Level.RayLaser {
-                    laserChanged = newRay != oldRay
-                } else if let newSeg = laser as? Level.SegmentLaser, let oldSeg = oldRuntime.spec as? Level.SegmentLaser {
-                    laserChanged = newSeg != oldSeg
-                } else {
-                    // Type changed, definitely different
-                    laserChanged = true
-                }
-            } else {
-                // New laser
-                laserChanged = true
-            }
-
-            if laserChanged {
-                // Laser changed or new, create new runtime
-                if var newRuntime = makeLaserRuntime(from: laser, transform: transform) {
-                    // Remove old laser node if it exists
-                    if let oldRuntime = oldLaserMap[laser.id] {
-                        oldRuntime.node.removeFromParent()
-                    }
-                    newRuntime.node.startMotion()
-                    newRuntime.applyFiringState(immediate: true)
-                    newRuntime.node.zPosition = 10
-                    addChild(newRuntime.node)
-                    updatedLasers.append(newRuntime)
-                }
-            } else {
+            if let runtime = oldLaserMap[laser.id], runtime.spec.isEqual(to: laser) {
                 // Laser unchanged, keep existing runtime
-                if let runtime = oldLaserMap[laser.id] {
-                    updatedLasers.append(runtime)
+                updatedLasers.append(runtime)
+            } else if var newRuntime = makeLaserRuntime(from: laser, transform: transform) {
+                // Laser changed or new, create new runtime
+                // Remove old laser node if it exists
+                if let oldRuntime = oldLaserMap[laser.id] {
+                    oldRuntime.node.removeFromParent()
                 }
+                newRuntime.node.startMotion()
+                newRuntime.applyFiringState(immediate: true)
+                newRuntime.node.zPosition = 10
+                addChild(newRuntime.node)
+                updatedLasers.append(newRuntime)
             }
         }
         laserStates = updatedLasers
