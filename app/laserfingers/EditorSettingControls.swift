@@ -280,28 +280,16 @@ extension Color {
     }
 }
 
-#if canImport(UIKit)
-import UIKit
-private extension UIColor {
-    convenience init?(hexString: String) {
-        guard let components = Self.rgbComponents(from: hexString) else { return nil }
-        self.init(red: components.r, green: components.g, blue: components.b, alpha: 1)
-    }
-    
-    var hexString: String? {
-        var r: CGFloat = 0
-        var g: CGFloat = 0
-        var b: CGFloat = 0
-        var a: CGFloat = 0
-        guard getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
-        return UIColor.formatHex(r: r, g: g, b: b)
-    }
-    
+// MARK: - Shared Hex Parsing Logic
+
+private enum HexColorParser {
+    /// Parse RGB components from a hex color string (supports 3 or 6 character formats, with or without '#')
     static func rgbComponents(from hexString: String) -> (r: CGFloat, g: CGFloat, b: CGFloat)? {
         var cleaned = hexString.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if cleaned.hasPrefix("#") {
             cleaned.removeFirst()
         }
+        // Expand 3-character shorthand (e.g., "F0A" -> "FF00AA")
         if cleaned.count == 3 {
             cleaned = cleaned.reduce(into: "") { partial, char in
                 partial.append(String(repeating: char, count: 2))
@@ -315,7 +303,8 @@ private extension UIColor {
         let b = CGFloat(value & 0x0000FF) / 255.0
         return (r, g, b)
     }
-    
+
+    /// Format RGB components as a 6-character hex string (without '#' prefix)
     static func formatHex(r: CGFloat, g: CGFloat, b: CGFloat) -> String {
         let red = Int(round(r * 255))
         let green = Int(round(g * 255))
@@ -323,43 +312,35 @@ private extension UIColor {
         return String(format: "%02X%02X%02X", red, green, blue)
     }
 }
+
+#if canImport(UIKit)
+import UIKit
+private extension UIColor {
+    convenience init?(hexString: String) {
+        guard let components = HexColorParser.rgbComponents(from: hexString) else { return nil }
+        self.init(red: components.r, green: components.g, blue: components.b, alpha: 1)
+    }
+
+    var hexString: String? {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        guard getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        return HexColorParser.formatHex(r: r, g: g, b: b)
+    }
+}
 #elseif canImport(AppKit)
 import AppKit
 private extension NSColor {
     convenience init?(hexString: String) {
-        guard let components = Self.rgbComponents(from: hexString) else { return nil }
+        guard let components = HexColorParser.rgbComponents(from: hexString) else { return nil }
         self.init(srgbRed: components.r, green: components.g, blue: components.b, alpha: 1)
     }
-    
+
     var hexString: String? {
         guard let color = usingColorSpace(.sRGB) else { return nil }
-        return NSColor.formatHex(r: color.redComponent, g: color.greenComponent, b: color.blueComponent)
-    }
-    
-    static func rgbComponents(from hexString: String) -> (r: CGFloat, g: CGFloat, b: CGFloat)? {
-        var cleaned = hexString.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        if cleaned.hasPrefix("#") {
-            cleaned.removeFirst()
-        }
-        if cleaned.count == 3 {
-            cleaned = cleaned.reduce(into: "") { partial, char in
-                partial.append(String(repeating: char, count: 2))
-            }
-        }
-        guard cleaned.count == 6, let value = UInt(cleaned, radix: 16) else {
-            return nil
-        }
-        let r = CGFloat((value & 0xFF0000) >> 16) / 255.0
-        let g = CGFloat((value & 0x00FF00) >> 8) / 255.0
-        let b = CGFloat(value & 0x0000FF) / 255.0
-        return (r, g, b)
-    }
-    
-    static func formatHex(r: CGFloat, g: CGFloat, b: CGFloat) -> String {
-        let red = Int(round(r * 255))
-        let green = Int(round(g * 255))
-        let blue = Int(round(b * 255))
-        return String(format: "%02X%02X%02X", red, green, blue)
+        return HexColorParser.formatHex(r: color.redComponent, g: color.greenComponent, b: color.blueComponent)
     }
 }
 #endif
