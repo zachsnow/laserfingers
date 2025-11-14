@@ -399,39 +399,57 @@ class LevelSceneBase: SKScene {
 
         // Create handles for laser path points at their defined positions (not animated positions)
         for laser in level.lasers {
+            let endpoints: [Level.EndpointPath]
             if let rayLaser = laser as? Level.RayLaser {
-                addPathHandlesAndLines(for: rayLaser.endpoint, type: .endpoint, laserID: laser.id, pointIndexOffset: 0, buttonID: nil, transform: transform)
+                endpoints = rayLaser.endpoints
             } else if let segmentLaser = laser as? Level.SegmentLaser {
-                addPathHandlesAndLines(for: segmentLaser.startEndpoint, type: .endpoint, laserID: laser.id, pointIndexOffset: 0, buttonID: nil, transform: transform)
-                addPathHandlesAndLines(for: segmentLaser.endEndpoint, type: .endpoint, laserID: laser.id, pointIndexOffset: -1, buttonID: nil, transform: transform)
+                endpoints = segmentLaser.endpoints
+            } else {
+                continue
+            }
+
+            for (endpointIndex, endpoint) in endpoints.enumerated() {
+                addPathHandlesAndLines(
+                    for: endpoint,
+                    ownerType: "laser",
+                    ownerID: laser.id,
+                    endpointIndex: endpointIndex,
+                    transform: transform
+                )
             }
         }
 
         // Create handles for button endpoint points
         for button in level.buttons {
-            addPathHandlesAndLines(for: button.endpoint, type: .buttonAnchor, laserID: nil, pointIndexOffset: 0, buttonID: button.id, transform: transform)
+            for (endpointIndex, endpoint) in button.endpoints.enumerated() {
+                addPathHandlesAndLines(
+                    for: endpoint,
+                    ownerType: "button",
+                    ownerID: button.id,
+                    endpointIndex: endpointIndex,
+                    transform: transform
+                )
+            }
         }
     }
 
     /// Helper to add path point handles and connecting lines for an EndpointPath
     private func addPathHandlesAndLines(
         for endpoint: Level.EndpointPath,
-        type: PathPointHandleNode.HandleType,
-        laserID: String?,
-        pointIndexOffset: Int,
-        buttonID: String?,
+        ownerType: String,
+        ownerID: String,
+        endpointIndex: Int,
         transform: NormalizedLayoutTransform
     ) {
         let points = endpoint.points
 
         // Add handles for each point
-        for (index, point) in points.enumerated() {
-            let actualIndex = pointIndexOffset < 0 ? -(index + 1) : (index + pointIndexOffset)
+        for (pointIndex, point) in points.enumerated() {
             let handle = PathPointHandleNode(
-                type: type,
-                laserID: laserID,
-                pointIndex: actualIndex,
-                buttonID: buttonID
+                ownerType: ownerType,
+                ownerID: ownerID,
+                endpointIndex: endpointIndex,
+                pointIndex: pointIndex
             )
             handle.position = transform.point(from: point)
             handle.isHidden = !showPathPointHandles
@@ -473,17 +491,25 @@ class LevelSceneBase: SKScene {
 
         // Update laser path point handles to their raw defined positions
         for laser in level.lasers {
+            let endpoints: [Level.EndpointPath]
             if let rayLaser = laser as? Level.RayLaser {
-                updatePathHandlesAndLinesPositions(for: rayLaser.endpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
+                endpoints = rayLaser.endpoints
             } else if let segmentLaser = laser as? Level.SegmentLaser {
-                updatePathHandlesAndLinesPositions(for: segmentLaser.startEndpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
-                updatePathHandlesAndLinesPositions(for: segmentLaser.endEndpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
+                endpoints = segmentLaser.endpoints
+            } else {
+                continue
+            }
+
+            for endpoint in endpoints {
+                updatePathHandlesAndLinesPositions(for: endpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
             }
         }
 
         // Update button endpoint handles
         for button in level.buttons {
-            updatePathHandlesAndLinesPositions(for: button.endpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
+            for endpoint in button.endpoints {
+                updatePathHandlesAndLinesPositions(for: endpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
+            }
         }
     }
 
@@ -1153,24 +1179,19 @@ extension LaserObstacle {
 // MARK: - Path Point Handle Node
 
 final class PathPointHandleNode: SKNode {
-    enum HandleType {
-        case endpoint
-        case buttonAnchor
-    }
-
-    let handleType: HandleType
-    let laserID: String?
-    let pointIndex: Int?
-    let buttonID: String?
+    let ownerType: String      // "button", "laser"
+    let ownerID: String        // object ID
+    let endpointIndex: Int     // which endpoint (0 for single-endpoint objects)
+    let pointIndex: Int        // which point in that endpoint
 
     private let circle: SKShapeNode
     private let innerDot: SKShapeNode
 
-    init(type: HandleType, laserID: String? = nil, pointIndex: Int? = nil, buttonID: String? = nil) {
-        self.handleType = type
-        self.laserID = laserID
+    init(ownerType: String, ownerID: String, endpointIndex: Int, pointIndex: Int) {
+        self.ownerType = ownerType
+        self.ownerID = ownerID
+        self.endpointIndex = endpointIndex
         self.pointIndex = pointIndex
-        self.buttonID = buttonID
 
         circle = SKShapeNode(circleOfRadius: 12)
         innerDot = SKShapeNode(circleOfRadius: 4)
@@ -1184,12 +1205,14 @@ final class PathPointHandleNode: SKNode {
         circle.zPosition = 100
         addChild(circle)
 
-        // Inner dot
-        switch type {
-        case .endpoint:
+        // Inner dot - color by owner type
+        switch ownerType {
+        case "laser":
             innerDot.fillColor = SKColor.cyan.withAlphaComponent(0.9)
-        case .buttonAnchor:
+        case "button":
             innerDot.fillColor = SKColor.magenta.withAlphaComponent(0.9)
+        default:
+            innerDot.fillColor = SKColor.white.withAlphaComponent(0.9)
         }
         innerDot.strokeColor = .clear
         innerDot.zPosition = 101

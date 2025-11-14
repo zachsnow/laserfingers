@@ -75,14 +75,19 @@ struct Level: Identifiable, Codable, Hashable {
         }
         
         let id: String
-        /// Animation path for button position. Single point = stationary, multiple points = animated.
-        let endpoint: EndpointPath
+        /// Animation paths for button position. Most buttons have 1 endpoint.
+        let endpoints: [EndpointPath]
         let timing: Timing
         let hitLogic: HitLogic
         let required: Bool
         let color: ColorSpec
         let hitAreas: [HitArea]
         let effects: [Effect]
+
+        /// Convenience accessor for single-endpoint buttons (read-only)
+        var endpoint: EndpointPath {
+            endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)])
+        }
     }
     
     // MARK: - Laser Types
@@ -245,33 +250,38 @@ struct Level: Identifiable, Codable, Hashable {
     }
 
     final class RayLaser: Laser {
-        let endpoint: EndpointPath
+        let endpoints: [EndpointPath]
         /// Initial angle in radians. Computed at load time: perpendicular to path for moving endpoints, 0 for stationary.
         let initialAngle: Double
         /// Rotation speed in radians per second.
         let rotationSpeed: Double
 
+        /// Convenience accessor for single-endpoint ray lasers (read-only)
+        var endpoint: EndpointPath {
+            endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)])
+        }
+
         private enum CodingKeys: String, CodingKey {
-            case endpoint
+            case endpoints
             case initialAngle
             case rotationSpeed
         }
 
         init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
-             endpoint: EndpointPath, initialAngle: Double?, rotationSpeed: Double, enabled: Bool = true) {
-            self.endpoint = endpoint
-            // Compute default if not provided
-            self.initialAngle = initialAngle ?? Self.computeDefaultAngle(for: endpoint)
+             endpoints: [EndpointPath], initialAngle: Double?, rotationSpeed: Double, enabled: Bool = true) {
+            self.endpoints = endpoints
+            // Compute default if not provided (use first endpoint)
+            self.initialAngle = initialAngle ?? Self.computeDefaultAngle(for: endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)]))
             self.rotationSpeed = rotationSpeed
             super.init(id: id, color: color, thickness: thickness, cadence: cadence, enabled: enabled)
         }
 
         required init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            endpoint = try container.decode(EndpointPath.self, forKey: .endpoint)
+            endpoints = try container.decode([EndpointPath].self, forKey: .endpoints)
             let explicitAngle = try container.decodeIfPresent(Double.self, forKey: .initialAngle)
-            // Compute default at decode time if not specified
-            initialAngle = explicitAngle ?? Self.computeDefaultAngle(for: endpoint)
+            // Compute default at decode time if not specified (use first endpoint)
+            initialAngle = explicitAngle ?? Self.computeDefaultAngle(for: endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)]))
             rotationSpeed = try container.decode(Double.self, forKey: .rotationSpeed)
             try super.init(from: decoder)
         }
@@ -279,7 +289,7 @@ struct Level: Identifiable, Codable, Hashable {
         override func encode(to encoder: Encoder) throws {
             try super.encode(to: encoder)
             var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(endpoint, forKey: .endpoint)
+            try container.encode(endpoints, forKey: .endpoints)
             try container.encode(initialAngle, forKey: .initialAngle)
             try container.encode(rotationSpeed, forKey: .rotationSpeed)
         }
@@ -287,14 +297,14 @@ struct Level: Identifiable, Codable, Hashable {
         override func isEqual(to other: Laser) -> Bool {
             guard let otherRay = other as? RayLaser else { return false }
             return super.isEqual(to: other) &&
-                   endpoint == otherRay.endpoint &&
+                   endpoints == otherRay.endpoints &&
                    initialAngle == otherRay.initialAngle &&
                    rotationSpeed == otherRay.rotationSpeed
         }
 
         override func hash(into hasher: inout Hasher) {
             super.hash(into: &hasher)
-            hasher.combine(endpoint)
+            hasher.combine(endpoints)
             hasher.combine(initialAngle)
             hasher.combine(rotationSpeed)
         }
@@ -323,46 +333,49 @@ struct Level: Identifiable, Codable, Hashable {
     }
 
     final class SegmentLaser: Laser {
-        let startEndpoint: EndpointPath
-        let endEndpoint: EndpointPath
+        let endpoints: [EndpointPath]  // Always 2 elements: [start, end]
+
+        /// Convenience accessor for start endpoint (read-only)
+        var startEndpoint: EndpointPath {
+            endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)])
+        }
+
+        /// Convenience accessor for end endpoint (read-only)
+        var endEndpoint: EndpointPath {
+            endpoints.count > 1 ? endpoints[1] : EndpointPath(points: [NormalizedPoint(x: 0, y: 0)])
+        }
 
         private enum CodingKeys: String, CodingKey {
-            case startEndpoint
-            case endEndpoint
+            case endpoints
         }
 
         init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
-             startEndpoint: EndpointPath, endEndpoint: EndpointPath, enabled: Bool = true) {
-            self.startEndpoint = startEndpoint
-            self.endEndpoint = endEndpoint
+             endpoints: [EndpointPath], enabled: Bool = true) {
+            assert(endpoints.count == 2, "SegmentLaser must have exactly 2 endpoints")
+            self.endpoints = endpoints
             super.init(id: id, color: color, thickness: thickness, cadence: cadence, enabled: enabled)
         }
 
         required init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            startEndpoint = try container.decode(EndpointPath.self, forKey: .startEndpoint)
-            endEndpoint = try container.decode(EndpointPath.self, forKey: .endEndpoint)
+            endpoints = try container.decode([EndpointPath].self, forKey: .endpoints)
             try super.init(from: decoder)
         }
 
         override func encode(to encoder: Encoder) throws {
             try super.encode(to: encoder)
             var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(startEndpoint, forKey: .startEndpoint)
-            try container.encode(endEndpoint, forKey: .endEndpoint)
+            try container.encode(endpoints, forKey: .endpoints)
         }
 
         override func isEqual(to other: Laser) -> Bool {
             guard let otherSeg = other as? SegmentLaser else { return false }
-            return super.isEqual(to: other) &&
-                   startEndpoint == otherSeg.startEndpoint &&
-                   endEndpoint == otherSeg.endEndpoint
+            return super.isEqual(to: other) && endpoints == otherSeg.endpoints
         }
 
         override func hash(into hasher: inout Hasher) {
             super.hash(into: &hasher)
-            hasher.combine(startEndpoint)
-            hasher.combine(endEndpoint)
+            hasher.combine(endpoints)
         }
     }
     
@@ -488,7 +501,7 @@ extension Level {
 extension Level.Button {
     private enum CodingKeys: String, CodingKey {
         case id
-        case endpoint
+        case endpoints
         case timing
         case hitLogic
         case required
@@ -500,7 +513,7 @@ extension Level.Button {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
-        endpoint = try container.decode(Level.EndpointPath.self, forKey: .endpoint)
+        endpoints = try container.decode([Level.EndpointPath].self, forKey: .endpoints)
         timing = try container.decode(Level.Button.Timing.self, forKey: .timing)
         hitLogic = try container.decode(Level.Button.HitLogic.self, forKey: .hitLogic)
         required = try container.decode(Bool.self, forKey: .required)
@@ -512,7 +525,7 @@ extension Level.Button {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(endpoint, forKey: .endpoint)
+        try container.encode(endpoints, forKey: .endpoints)
         try container.encode(timing, forKey: .timing)
         try container.encode(hitLogic, forKey: .hitLogic)
         try container.encode(required, forKey: .required)
