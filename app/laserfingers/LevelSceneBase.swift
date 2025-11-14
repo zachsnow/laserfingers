@@ -128,7 +128,7 @@ class LevelSceneBase: SKScene {
             laserStates[index].node.configureVisualEffects(
                 glowEnabled: newSettings.glowEnabled,
                 blurEnabled: newSettings.blurEnabled,
-                afterimageEnabled: newSettings.afterimageEnabled
+                afterimageEnabled: false
             )
         }
     }
@@ -388,21 +388,22 @@ class LevelSceneBase: SKScene {
         let color = SKColor.fromHex(spec.color, alpha: 0.95)
         let thickness = max(spec.thickness, 0.005)
         let node: LaserNode
-        switch spec.kind {
-        case .sweeper(let sweeper):
-            node = SweepingLaserNode(spec: sweeper, thicknessScale: thickness, color: color)
-        case .rotor(let rotor):
-            node = RotatingLaserNode(spec: rotor, thicknessScale: thickness, color: color)
-        case .segment(let segment):
-            node = SegmentLaserNode(spec: segment, thicknessScale: thickness, color: color)
+
+        if let rayLaser = spec as? Level.RayLaser {
+            node = RayLaserNode(laser: rayLaser, thicknessScale: thickness, color: color)
+        } else if let segmentLaser = spec as? Level.SegmentLaser {
+            node = SegmentLaserNode(laser: segmentLaser, thicknessScale: thickness, color: color)
+        } else {
+            return nil
         }
+
         node.alpha = 0
         node.run(SKAction.fadeIn(withDuration: 0.2))
         node.addLight()
         node.configureVisualEffects(
             glowEnabled: settings.glowEnabled,
             blurEnabled: settings.blurEnabled,
-            afterimageEnabled: settings.afterimageEnabled
+            afterimageEnabled: false
         )
         var runtime = LaserRuntime(spec: spec, node: node)
         runtime.updateLayout(transform: transform)
@@ -468,7 +469,7 @@ class LevelSceneBase: SKScene {
         guard !laserStates.isEmpty else { return }
         for index in laserStates.indices {
             var runtime = laserStates[index]
-            runtime.advance(delta: delta)
+            runtime.advance(delta: delta, timelineTime: timelineSeconds)
             laserStates[index] = runtime
         }
     }
@@ -816,9 +817,16 @@ struct LaserRuntime {
         }
     }
     
-    mutating func advance(delta: TimeInterval) {
+    mutating func advance(delta: TimeInterval, timelineTime: TimeInterval) {
         cadence?.advance(by: delta)
         applyFiringState(immediate: false)
+
+        // Update node positions for moving endpoints
+        if let rayNode = node as? RayLaserNode {
+            rayNode.updatePosition(at: timelineTime)
+        } else if let segmentNode = node as? SegmentLaserNode {
+            segmentNode.updatePosition(at: timelineTime)
+        }
     }
     
     mutating func apply(action: Level.Button.Effect.Action.Kind) {
@@ -870,12 +878,12 @@ struct LaserRuntime {
 }
 
 private struct LaserCadence {
-    private let steps: [Level.Laser.CadenceStep]
+    private let steps: [Level.CadenceStep]
     private var index: Int = 0
     private var elapsed: Double = 0
     private var locked = false
-    
-    init(steps: [Level.Laser.CadenceStep]) {
+
+    init(steps: [Level.CadenceStep]) {
         self.steps = steps
         if steps.first?.duration == nil {
             locked = true
@@ -1085,6 +1093,55 @@ struct Polygon {
     }
 }
 
+// MARK: - Endpoint Path Helpers
+
+private extension Level.EndpointPath {
+    /// Evaluate the position along the path at a given time
+    func position(at time: TimeInterval, transform: NormalizedLayoutTransform) -> CGPoint {
+        guard !points.isEmpty else { return .zero }
+
+        if isStationary {
+            return transform.point(from: points[0])
+        }
+
+        // Linear path between two points
+        guard points.count >= 2, let cycleSeconds = cycleSeconds, cycleSeconds > 0 else {
+            return transform.point(from: points[0])
+        }
+
+        // cycleSeconds is a full round-trip (0 -> 1 -> 0)
+        let cycleTime = time.truncatingRemainder(dividingBy: cycleSeconds)
+        let normalizedTime = cycleTime / cycleSeconds  // 0 to 1 over full cycle
+
+        // First half: ease from 0 to 1, second half: ease from 1 to 0
+        var t: Double
+        if normalizedTime < 0.5 {
+            // Forward: 0 -> 1 (first half of cycle)
+            let halfT = normalizedTime * 2  // 0 to 1
+            // Apply easeInOut for smooth acceleration/deceleration
+            t = halfT < 0.5
+                ? 2 * halfT * halfT
+                : 1 - pow(-2 * halfT + 2, 2) / 2
+        } else {
+            // Backward: 1 -> 0 (second half of cycle)
+            let halfT = (normalizedTime - 0.5) * 2  // 0 to 1
+            // Apply easeInOut for smooth acceleration/deceleration
+            let easedT = halfT < 0.5
+                ? 2 * halfT * halfT
+                : 1 - pow(-2 * halfT + 2, 2) / 2
+            t = 1 - easedT  // Reverse direction
+        }
+
+        // Interpolate between points
+        let p0 = transform.point(from: points[0])
+        let p1 = transform.point(from: points[1])
+        let x = p0.x + (p1.x - p0.x) * t
+        let y = p0.y + (p1.y - p0.y) * t
+
+        return CGPoint(x: x, y: y)
+    }
+}
+
 // MARK: - Laser Node Implementations
 
 class BaseLaserNode: SKNode, LaserObstacle {
@@ -1229,255 +1286,78 @@ class BaseLaserNode: SKNode, LaserObstacle {
     }
 }
 
-final class SweepingLaserNode: BaseLaserNode {
-    private let spec: Level.Laser.Sweeper
+
+final class RayLaserNode: BaseLaserNode {
+    private let laser: Level.RayLaser
     private let thicknessScale: CGFloat
-    private var startPoint: CGPoint = .zero
-    private var endPoint: CGPoint = .zero
+    private var currentTransform: NormalizedLayoutTransform?
+    private var elapsedTime: TimeInterval = 0
     private var motionActive = false
 
-    init(spec: Level.Laser.Sweeper, thicknessScale: CGFloat, color: SKColor) {
-        self.spec = spec
+    init(laser: Level.RayLaser, thicknessScale: CGFloat, color: SKColor) {
+        self.laser = laser
         self.thicknessScale = thicknessScale
         super.init(color: color)
-        glowShell.fillColor = color.withAlphaComponent(0.45)
-        glowShell.strokeColor = color.withAlphaComponent(0.2)
-        bloomShape.fillColor = color.withAlphaComponent(0.65)
-        bloomShape.strokeColor = color.withAlphaComponent(0.25)
-        lightNode.falloff = 0.7
-        lightNode.ambientColor = color.withAlphaComponent(0.2)
-        lightNode.lightColor = color.withAlphaComponent(0.95)
-        lightNode.alpha = 1.0
-        startGlowShimmer()
-    }
-    
-    required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    override func startMotion() {
-        motionActive = true
-        restartMotion()
-        if isLaserActive && areAfterimagesEnabled {
-            startAfterimageLoop()
-        }
-    }
-    
-    private var isLaserActive: Bool {
-        !beam.isHidden
-    }
-    
-    override func updateLayout(using transform: NormalizedLayoutTransform) {
-        let thickness = max(transform.length(from: thicknessScale), 1)
-        startPoint = transform.point(from: spec.start)
-        endPoint = transform.point(from: spec.end)
-
-        configureLineLaser(start: .zero, end: CGPoint(x: 0, y: startPoint.distance(to: endPoint)), thickness: thickness)
-
-        position = startPoint
-        let dx = endPoint.x - startPoint.x
-        let dy = endPoint.y - startPoint.y
-        zRotation = atan2(dy, dx) + (.pi / 2)
-
-        lightNode.position = .zero
-        if motionActive {
-            restartMotion()
-        }
-    }
-    
-    private func restartMotion() {
-        removeAction(forKey: "patrol")
-        guard startPoint != endPoint else { return }
-        let duration = max(spec.sweepSeconds, 0.05)
-        let forward = SKAction.move(to: endPoint, duration: duration)
-        forward.timingMode = .easeInEaseOut
-        let backward = SKAction.move(to: startPoint, duration: duration)
-        backward.timingMode = .easeInEaseOut
-        let loop = SKAction.sequence([forward, backward])
-        run(SKAction.repeatForever(loop), withKey: "patrol")
-    }
-    
-    override func didActivateLaser() {
-        guard areAfterimagesEnabled else { return }
-        if action(forKey: "afterimage") == nil {
-            startAfterimageLoop()
-        }
-    }
-
-    override func didDeactivateLaser() {
-        removeAction(forKey: "afterimage")
-    }
-    
-    override func startAfterimageLoop() {
-        guard areAfterimagesEnabled else { return }
-        removeAction(forKey: "afterimage")
-        let wait = SKAction.wait(forDuration: 0.08)
-        let spawn = SKAction.run { [weak self] in
-            self?.spawnAfterimage()
-        }
-        run(SKAction.repeatForever(SKAction.sequence([spawn, wait])), withKey: "afterimage")
-    }
-    
-    private func spawnAfterimage() {
-        guard let path = beam.path, let scene = scene else { return }
-        let ghost = SKShapeNode(path: path)
-        ghost.position = position
-        ghost.zRotation = beam.zRotation
-        ghost.fillColor = color.withAlphaComponent(0.2)
-        ghost.strokeColor = .clear
-        ghost.glowWidth = 0
-        ghost.lineWidth = 0
-        ghost.blendMode = .add
-        ghost.zPosition = zPosition - 0.1
-        scene.addChild(ghost)
-        ghost.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.fadeOut(withDuration: 0.6),
-                SKAction.scale(by: 1.04, duration: 0.6)
-            ]),
-            SKAction.removeFromParent()
-        ]))
-    }
-    
-    private func startGlowShimmer() {
-        glowShell.removeAction(forKey: "glowShimmer")
-        let delay = Double.random(in: 0...0.4)
-        let duration = Double.random(in: 1.0...1.4)
-        let up = SKAction.group([
-            SKAction.fadeAlpha(to: 0.75, duration: duration),
-            SKAction.scaleX(to: 1.06, duration: duration),
-            SKAction.scaleY(to: 1.08, duration: duration)
-        ])
-        let down = SKAction.group([
-            SKAction.fadeAlpha(to: 0.35, duration: duration),
-            SKAction.scaleX(to: 1.0, duration: duration),
-            SKAction.scaleY(to: 1.0, duration: duration)
-        ])
-        let sequence = SKAction.sequence([up, down])
-        glowShell.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.repeatForever(sequence)]), withKey: "glowShimmer")
-        lightNode.removeAction(forKey: "lightShimmer")
-        let lightSequence = SKAction.sequence([
-            SKAction.fadeAlpha(to: 0.85, duration: duration),
-            SKAction.fadeAlpha(to: 0.45, duration: duration)
-        ])
-        lightNode.run(SKAction.sequence([SKAction.wait(forDuration: delay), SKAction.repeatForever(lightSequence)]), withKey: "lightShimmer")
-    }
-    
-}
-
-final class RotatingLaserNode: BaseLaserNode {
-    private let spec: Level.Laser.Rotor
-    private let thicknessScale: CGFloat
-    private var motionActive = false
-    
-    init(spec: Level.Laser.Rotor, thicknessScale: CGFloat, color: SKColor) {
-        self.spec = spec
-        self.thicknessScale = thicknessScale
-        super.init(color: color)
-        glowShell.fillColor = color.withAlphaComponent(0.4)
-        glowShell.strokeColor = color.withAlphaComponent(0.18)
-        bloomShape.fillColor = color.withAlphaComponent(0.6)
-        bloomShape.strokeColor = color.withAlphaComponent(0.25)
+        // Glow/bloom colors are set in setupNodes(), only customize lighting here
         lightNode.falloff = 0.6
         lightNode.ambientColor = color.withAlphaComponent(0.2)
         lightNode.lightColor = color.withAlphaComponent(0.95)
         startGlowShimmer()
     }
-    
+
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
-    override func startMotion() {
-        guard spec.speedDegreesPerSecond != 0 else { return }
-        motionActive = true
-        restartSpin()
-        if areAfterimagesEnabled {
-            startAfterimageLoop()
-        }
-    }
-    
-    override func updateLayout(using transform: NormalizedLayoutTransform) {
-        let thickness = max(transform.length(from: thicknessScale), 1)
-        let armLength = max(transform.frame.width, transform.frame.height) * 1.4
 
-        configureLineLaser(start: CGPoint(x: 0, y: -armLength / 2), end: CGPoint(x: 0, y: armLength / 2), thickness: thickness)
+    override func startMotion() {
+        motionActive = true
+    }
+
+    override func updateLayout(using transform: NormalizedLayoutTransform) {
+        currentTransform = transform
+        updatePosition(at: elapsedTime)
+    }
+
+    func updatePosition(at time: TimeInterval) {
+        guard let transform = currentTransform else { return }
+        elapsedTime = time
+
+        let thickness = max(transform.length(from: thicknessScale), 1)
+
+        // Ray extends in both directions (2x screen diagonal for "infinite" effect)
+        let rayLength = sqrt(pow(transform.frame.width, 2) + pow(transform.frame.height, 2)) * 2
+        configureLineLaser(start: CGPoint(x: 0, y: -rayLength / 2), end: CGPoint(x: 0, y: rayLength / 2), thickness: thickness)
 
         lightNode.position = .zero
-        position = transform.point(from: spec.center)
-        zRotation = CGFloat(spec.initialAngleDegrees * .pi / 180)
-        if motionActive {
-            restartSpin()
-        }
-    }
-    
-    private func restartSpin() {
-        removeAction(forKey: "spin")
-        guard spec.speedDegreesPerSecond != 0 else { return }
-        let direction: CGFloat = spec.speedDegreesPerSecond > 0 ? -1 : 1
-        let degreesPerSecond = abs(spec.speedDegreesPerSecond)
-        let duration = Double(360) / max(degreesPerSecond, 0.01)
-        let rotation = SKAction.rotate(byAngle: direction * (.pi * 2), duration: duration)
-        run(SKAction.repeatForever(rotation), withKey: "spin")
-    }
-    
-    override func didActivateLaser() {
-        guard areAfterimagesEnabled else { return }
-        if action(forKey: "afterimage") == nil {
-            startAfterimageLoop()
-        }
-    }
 
-    override func didDeactivateLaser() {
-        removeAction(forKey: "afterimage")
-    }
+        // Update endpoint position
+        let endpointPos = laser.endpoint.position(at: time + laser.endpoint.t, transform: transform)
+        position = endpointPos
 
-    override func startAfterimageLoop() {
-        guard areAfterimagesEnabled else { return }
-        removeAction(forKey: "afterimage")
-        let wait = SKAction.wait(forDuration: 0.1)
-        let spawn = SKAction.run { [weak self] in
-            self?.spawnAfterimage()
+        // Update rotation
+        let baseAngle = laser.effectiveInitialAngle()
+        let rotation: CGFloat
+        if motionActive && laser.rotationSpeed != 0 {
+            rotation = CGFloat(baseAngle + laser.rotationSpeed * time)
+        } else {
+            rotation = CGFloat(baseAngle)
         }
-        run(SKAction.repeatForever(SKAction.sequence([spawn, wait])), withKey: "afterimage")
-    }
+        zRotation = rotation
 
-    private func spawnAfterimage() {
-        guard let path = beam.path, let scene = scene else { return }
-        let ghost = SKShapeNode(path: path)
-        ghost.position = position
-        ghost.zRotation = zRotation
-        ghost.fillColor = color.withAlphaComponent(0.18)
-        ghost.strokeColor = .clear
-        ghost.glowWidth = 0
-        ghost.lineWidth = 0
-        ghost.blendMode = .add
-        ghost.zPosition = zPosition - 0.1
-        scene.addChild(ghost)
-        ghost.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.fadeOut(withDuration: 0.7),
-                SKAction.scale(by: 1.05, duration: 0.7)
-            ]),
-            SKAction.removeFromParent()
-        ]))
+        // Explicitly set rotation for child nodes to ensure they rotate properly
+        glowShell.zRotation = rotation
+        beam.zRotation = rotation
     }
 
     private func startGlowShimmer() {
+        // Use only alpha animations to avoid visual artifacts from scaling
         glowShell.removeAction(forKey: "rotorGlow")
         let duration = Double.random(in: 0.9...1.3)
-        let up = SKAction.group([
-            SKAction.fadeAlpha(to: 0.65, duration: duration),
-            SKAction.scaleX(to: 1.08, duration: duration),
-            SKAction.scaleY(to: 1.08, duration: duration)
-        ])
-        let down = SKAction.group([
-            SKAction.fadeAlpha(to: 0.35, duration: duration),
-            SKAction.scaleX(to: 1.0, duration: duration),
-            SKAction.scaleY(to: 1.0, duration: duration)
-        ])
+        let up = SKAction.fadeAlpha(to: 0.65, duration: duration)
+        let down = SKAction.fadeAlpha(to: 0.35, duration: duration)
         let sequence = SKAction.sequence([up, down])
         glowShell.run(SKAction.repeatForever(sequence), withKey: "rotorGlow")
+
         lightNode.removeAction(forKey: "rotorLight")
         let lightSequence = SKAction.sequence([
             SKAction.fadeAlpha(to: 0.85, duration: duration),
@@ -1488,52 +1368,63 @@ final class RotatingLaserNode: BaseLaserNode {
 }
 
 final class SegmentLaserNode: BaseLaserNode {
-    private let spec: Level.Laser.Segment
+    private let laser: Level.SegmentLaser
     private let thicknessScale: CGFloat
-    
-    init(spec: Level.Laser.Segment, thicknessScale: CGFloat, color: SKColor) {
-        self.spec = spec
+    private var currentTransform: NormalizedLayoutTransform?
+    private var elapsedTime: TimeInterval = 0
+
+    init(laser: Level.SegmentLaser, thicknessScale: CGFloat, color: SKColor) {
+        self.laser = laser
         self.thicknessScale = thicknessScale
         super.init(color: color)
-        glowShell.fillColor = color.withAlphaComponent(0.4)
-        glowShell.strokeColor = color.withAlphaComponent(0.2)
-        bloomShape.fillColor = color.withAlphaComponent(0.5)
-        bloomShape.strokeColor = color.withAlphaComponent(0.18)
+        // Glow/bloom colors are set in setupNodes(), only customize lighting here
         lightNode.falloff = 0.9
         lightNode.ambientColor = color.withAlphaComponent(0.2)
         lightNode.lightColor = color.withAlphaComponent(0.9)
         startGlowShimmer()
     }
-    
+
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     override func updateLayout(using transform: NormalizedLayoutTransform) {
+        currentTransform = transform
+        updatePosition(at: elapsedTime)
+    }
+
+    func updatePosition(at time: TimeInterval) {
+        guard let transform = currentTransform else { return }
+        elapsedTime = time
+
         let thickness = max(transform.length(from: thicknessScale), 1)
-        let start = transform.point(from: spec.start)
-        let end = transform.point(from: spec.end)
+
+        // Evaluate both endpoints at current time
+        let start = laser.startEndpoint.position(at: time + laser.startEndpoint.t, transform: transform)
+        let end = laser.endEndpoint.position(at: time + laser.endEndpoint.t, transform: transform)
 
         configureLineLaser(start: start, end: end, thickness: thickness)
 
-        lightNode.position = .zero
+        // Keep node at origin since beam coordinates are in world space
+        position = .zero
+        zRotation = 0
+
+        // Position light at midpoint of segment
+        let midpoint = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
+        lightNode.position = midpoint
     }
-    
+
     private func startGlowShimmer() {
+        // For segment lasers, paths are in world-space coordinates, so scale animations
+        // don't work correctly (they scale around origin, not the laser's center).
+        // Only use alpha animations.
         glowShell.removeAction(forKey: "segmentGlow")
         let duration = Double.random(in: 1.1...1.6)
-        let up = SKAction.group([
-            SKAction.fadeAlpha(to: 0.65, duration: duration),
-            SKAction.scaleX(to: 1.08, duration: duration),
-            SKAction.scaleY(to: 1.08, duration: duration)
-        ])
-        let down = SKAction.group([
-            SKAction.fadeAlpha(to: 0.35, duration: duration),
-            SKAction.scaleX(to: 1.0, duration: duration),
-            SKAction.scaleY(to: 1.0, duration: duration)
-        ])
+        let up = SKAction.fadeAlpha(to: 0.65, duration: duration)
+        let down = SKAction.fadeAlpha(to: 0.35, duration: duration)
         let sequence = SKAction.sequence([up, down])
         glowShell.run(SKAction.repeatForever(sequence), withKey: "segmentGlow")
+
         lightNode.removeAction(forKey: "segmentLight")
         let lightSequence = SKAction.sequence([
             SKAction.fadeAlpha(to: 0.85, duration: duration),
