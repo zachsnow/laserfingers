@@ -1021,9 +1021,41 @@ extension CGPoint {
     func distance(to other: CGPoint) -> CGFloat {
         hypot(other.x - x, other.y - y)
     }
-    
+
     func interpolated(to other: CGPoint, t: CGFloat) -> CGPoint {
         CGPoint(x: x + (other.x - x) * t, y: y + (other.y - y) * t)
+    }
+
+    /// Calculate squared distance from this point to a line segment.
+    /// Uses projection to find closest point on segment, then calculates distance.
+    /// - Parameters:
+    ///   - segmentStart: Start point of line segment
+    ///   - segmentEnd: End point of line segment
+    /// - Returns: Squared distance (avoids sqrt for performance)
+    func distanceSquared(toSegment segmentStart: CGPoint, _ segmentEnd: CGPoint) -> CGFloat {
+        // Degenerate case: segment is actually a point
+        if segmentStart == segmentEnd {
+            let dx = x - segmentStart.x
+            let dy = y - segmentStart.y
+            return dx * dx + dy * dy
+        }
+
+        // Vector from segment start to end
+        let ab = CGPoint(x: segmentEnd.x - segmentStart.x, y: segmentEnd.y - segmentStart.y)
+        // Vector from segment start to this point
+        let ap = CGPoint(x: x - segmentStart.x, y: y - segmentStart.y)
+
+        // Project point onto line (t = 0 at start, t = 1 at end)
+        let abLengthSquared = ab.x * ab.x + ab.y * ab.y
+        let t = max(0, min(1, (ap.x * ab.x + ap.y * ab.y) / abLengthSquared))
+
+        // Find closest point on segment
+        let projection = CGPoint(x: segmentStart.x + ab.x * t, y: segmentStart.y + ab.y * t)
+
+        // Return squared distance to projection
+        let dx = x - projection.x
+        let dy = y - projection.y
+        return dx * dx + dy * dy
     }
 }
 
@@ -1061,11 +1093,13 @@ struct Polygon {
         if contains(point) { return true }
         guard radius > 0 else { return false }
         let rSquared = radius * radius
+        // Check if point is within radius of any edge
         for edge in edges {
-            if distancePointToSegmentSquared(point, edge.0, edge.1) <= rSquared {
+            if point.distanceSquared(toSegment: edge.0, edge.1) <= rSquared {
                 return true
             }
         }
+        // Check if point is within radius of any vertex
         for vertex in points {
             let dx = vertex.x - point.x
             let dy = vertex.y - point.y
@@ -1074,22 +1108,6 @@ struct Polygon {
             }
         }
         return false
-    }
-    
-    private func distancePointToSegmentSquared(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
-        if a == b {
-            let dx = point.x - a.x
-            let dy = point.y - a.y
-            return dx * dx + dy * dy
-        }
-        let ab = CGPoint(x: b.x - a.x, y: b.y - a.y)
-        let ap = CGPoint(x: point.x - a.x, y: point.y - a.y)
-        let abLengthSquared = ab.x * ab.x + ab.y * ab.y
-        let t = max(0, min(1, (ap.x * ab.x + ap.y * ab.y) / abLengthSquared))
-        let projection = CGPoint(x: a.x + ab.x * t, y: a.y + ab.y * t)
-        let dx = point.x - projection.x
-        let dy = point.y - projection.y
-        return dx * dx + dy * dy
     }
 }
 

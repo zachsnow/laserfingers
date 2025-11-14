@@ -302,23 +302,23 @@ private struct Capsule {
             }
         }
         for vertex in polygon.points {
-            if distancePointToSegmentSquared(vertex, a, b) <= radiusSquared {
+            if vertex.distanceSquared(toSegment: a, b) <= radiusSquared {
                 return true
             }
         }
         return false
     }
-    
+
     private func segmentDistanceSquared(_ a1: CGPoint, _ a2: CGPoint, _ b1: CGPoint, _ b2: CGPoint) -> CGFloat {
         if segmentsIntersect(a1, a2, b1, b2) { return 0 }
         return min(
-            distancePointToSegmentSquared(a1, b1, b2),
-            distancePointToSegmentSquared(a2, b1, b2),
-            distancePointToSegmentSquared(b1, a1, a2),
-            distancePointToSegmentSquared(b2, a1, a2)
+            a1.distanceSquared(toSegment: b1, b2),
+            a2.distanceSquared(toSegment: b1, b2),
+            b1.distanceSquared(toSegment: a1, a2),
+            b2.distanceSquared(toSegment: a1, a2)
         )
     }
-    
+
     private func segmentsIntersect(_ p1: CGPoint, _ p2: CGPoint, _ q1: CGPoint, _ q2: CGPoint) -> Bool {
         let o1 = orientation(p1, p2, q1)
         let o2 = orientation(p1, p2, q2)
@@ -331,27 +331,15 @@ private struct Capsule {
         if o4 == 0 && onSegment(q1, p2, q2) { return true }
         return false
     }
-    
+
     private func orientation(_ p: CGPoint, _ q: CGPoint, _ r: CGPoint) -> Int {
         let val = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
         if abs(val) < .ulpOfOne { return 0 }
         return val > 0 ? 1 : 2
     }
-    
+
     private func onSegment(_ p: CGPoint, _ q: CGPoint, _ r: CGPoint) -> Bool {
         q.x <= max(p.x, r.x) + .ulpOfOne && q.x + .ulpOfOne >= min(p.x, r.x) &&
         q.y <= max(p.y, r.y) + .ulpOfOne && q.y + .ulpOfOne >= min(p.y, r.y)
-    }
-    
-    private func distancePointToSegmentSquared(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
-        if a == b { return point.distance(to: a) * point.distance(to: a) }
-        let ab = CGPoint(x: b.x - a.x, y: b.y - a.y)
-        let ap = CGPoint(x: point.x - a.x, y: point.y - a.y)
-        let abLengthSquared = ab.x * ab.x + ab.y * ab.y
-        let t = max(0, min(1, (ap.x * ab.x + ap.y * ab.y) / abLengthSquared))
-        let projection = CGPoint(x: a.x + ab.x * t, y: a.y + ab.y * t)
-        let dx = point.x - projection.x
-        let dy = point.y - projection.y
-        return dx * dx + dy * dy
     }
 }
