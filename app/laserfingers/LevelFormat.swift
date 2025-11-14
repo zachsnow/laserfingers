@@ -160,6 +160,8 @@ struct Level: Identifiable, Codable, Hashable {
         /// Cadence applied to the firing state. Nil or empty => always on.
         let cadence: [CadenceStep]?
         var enabled: Bool
+        /// Animation paths for laser position/shape. Ray lasers have 1, segment lasers have 2.
+        var endpoints: [EndpointPath]  // var so subclasses can set in decoder
 
         /// Dynamically dispatched equality check - subclasses override to include their specific properties
         func isEqual(to other: Laser) -> Bool {
@@ -167,7 +169,8 @@ struct Level: Identifiable, Codable, Hashable {
                    color == other.color &&
                    thickness == other.thickness &&
                    cadence == other.cadence &&
-                   enabled == other.enabled
+                   enabled == other.enabled &&
+                   endpoints == other.endpoints
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -184,11 +187,12 @@ struct Level: Identifiable, Codable, Hashable {
             case segment
         }
 
-        init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?, enabled: Bool = true) {
+        init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?, endpoints: [EndpointPath], enabled: Bool = true) {
             self.id = id
             self.color = color
             self.thickness = thickness
             self.cadence = cadence
+            self.endpoints = endpoints
             self.enabled = enabled
         }
 
@@ -199,6 +203,7 @@ struct Level: Identifiable, Codable, Hashable {
             thickness = try container.decode(CGFloat.self, forKey: .thickness)
             cadence = try container.decodeIfPresent([CadenceStep].self, forKey: .cadence)
             enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+            endpoints = []  // Subclasses will set this
         }
 
         func encode(to encoder: Encoder) throws {
@@ -220,6 +225,7 @@ struct Level: Identifiable, Codable, Hashable {
             hasher.combine(thickness)
             hasher.combine(cadence)
             hasher.combine(enabled)
+            hasher.combine(endpoints)
         }
 
         // Factory method for decoding the correct subclass
@@ -250,7 +256,6 @@ struct Level: Identifiable, Codable, Hashable {
     }
 
     final class RayLaser: Laser {
-        let endpoints: [EndpointPath]
         /// Initial angle in radians. Computed at load time: perpendicular to path for moving endpoints, 0 for stationary.
         let initialAngle: Double
         /// Rotation speed in radians per second.
@@ -269,21 +274,22 @@ struct Level: Identifiable, Codable, Hashable {
 
         init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
              endpoints: [EndpointPath], initialAngle: Double?, rotationSpeed: Double, enabled: Bool = true) {
-            self.endpoints = endpoints
             // Compute default if not provided (use first endpoint)
             self.initialAngle = initialAngle ?? Self.computeDefaultAngle(for: endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)]))
             self.rotationSpeed = rotationSpeed
-            super.init(id: id, color: color, thickness: thickness, cadence: cadence, enabled: enabled)
+            super.init(id: id, color: color, thickness: thickness, cadence: cadence, endpoints: endpoints, enabled: enabled)
         }
 
         required init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            endpoints = try container.decode([EndpointPath].self, forKey: .endpoints)
+            let decodedEndpoints = try container.decode([EndpointPath].self, forKey: .endpoints)
             let explicitAngle = try container.decodeIfPresent(Double.self, forKey: .initialAngle)
             // Compute default at decode time if not specified (use first endpoint)
-            initialAngle = explicitAngle ?? Self.computeDefaultAngle(for: endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)]))
+            initialAngle = explicitAngle ?? Self.computeDefaultAngle(for: decodedEndpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)]))
             rotationSpeed = try container.decode(Double.self, forKey: .rotationSpeed)
             try super.init(from: decoder)
+            // Set endpoints after super.init
+            super.endpoints = decodedEndpoints
         }
 
         override func encode(to encoder: Encoder) throws {
@@ -296,15 +302,13 @@ struct Level: Identifiable, Codable, Hashable {
 
         override func isEqual(to other: Laser) -> Bool {
             guard let otherRay = other as? RayLaser else { return false }
-            return super.isEqual(to: other) &&
-                   endpoints == otherRay.endpoints &&
+            return super.isEqual(to: other) &&  // super already checks endpoints
                    initialAngle == otherRay.initialAngle &&
                    rotationSpeed == otherRay.rotationSpeed
         }
 
         override func hash(into hasher: inout Hasher) {
-            super.hash(into: &hasher)
-            hasher.combine(endpoints)
+            super.hash(into: &hasher)  // super already hashes endpoints
             hasher.combine(initialAngle)
             hasher.combine(rotationSpeed)
         }
@@ -333,8 +337,6 @@ struct Level: Identifiable, Codable, Hashable {
     }
 
     final class SegmentLaser: Laser {
-        let endpoints: [EndpointPath]  // Always 2 elements: [start, end]
-
         /// Convenience accessor for start endpoint (read-only)
         var startEndpoint: EndpointPath {
             endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)])
@@ -352,14 +354,14 @@ struct Level: Identifiable, Codable, Hashable {
         init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
              endpoints: [EndpointPath], enabled: Bool = true) {
             assert(endpoints.count == 2, "SegmentLaser must have exactly 2 endpoints")
-            self.endpoints = endpoints
-            super.init(id: id, color: color, thickness: thickness, cadence: cadence, enabled: enabled)
+            super.init(id: id, color: color, thickness: thickness, cadence: cadence, endpoints: endpoints, enabled: enabled)
         }
 
         required init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            endpoints = try container.decode([EndpointPath].self, forKey: .endpoints)
+            let decodedEndpoints = try container.decode([EndpointPath].self, forKey: .endpoints)
             try super.init(from: decoder)
+            super.endpoints = decodedEndpoints
         }
 
         override func encode(to encoder: Encoder) throws {
@@ -370,12 +372,11 @@ struct Level: Identifiable, Codable, Hashable {
 
         override func isEqual(to other: Laser) -> Bool {
             guard let otherSeg = other as? SegmentLaser else { return false }
-            return super.isEqual(to: other) && endpoints == otherSeg.endpoints
+            return super.isEqual(to: other)  // super already checks endpoints
         }
 
         override func hash(into hasher: inout Hasher) {
-            super.hash(into: &hasher)
-            hasher.combine(endpoints)
+            super.hash(into: &hasher)  // super already hashes endpoints
         }
     }
     

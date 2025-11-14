@@ -399,16 +399,7 @@ class LevelSceneBase: SKScene {
 
         // Create handles for laser path points at their defined positions (not animated positions)
         for laser in level.lasers {
-            let endpoints: [Level.EndpointPath]
-            if let rayLaser = laser as? Level.RayLaser {
-                endpoints = rayLaser.endpoints
-            } else if let segmentLaser = laser as? Level.SegmentLaser {
-                endpoints = segmentLaser.endpoints
-            } else {
-                continue
-            }
-
-            for (endpointIndex, endpoint) in endpoints.enumerated() {
+            for (endpointIndex, endpoint) in laser.endpoints.enumerated() {
                 addPathHandlesAndLines(
                     for: endpoint,
                     ownerType: "laser",
@@ -491,16 +482,7 @@ class LevelSceneBase: SKScene {
 
         // Update laser path point handles to their raw defined positions
         for laser in level.lasers {
-            let endpoints: [Level.EndpointPath]
-            if let rayLaser = laser as? Level.RayLaser {
-                endpoints = rayLaser.endpoints
-            } else if let segmentLaser = laser as? Level.SegmentLaser {
-                endpoints = segmentLaser.endpoints
-            } else {
-                continue
-            }
-
-            for endpoint in endpoints {
+            for endpoint in laser.endpoints {
                 updatePathHandlesAndLinesPositions(for: endpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
             }
         }
