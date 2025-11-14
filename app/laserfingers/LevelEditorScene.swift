@@ -17,6 +17,7 @@ final class LevelEditorScene: LevelSceneBase {
 
     var zoomScale: CGFloat = 1.0 {
         didSet {
+            AppLog.zoom.debug("Zoom changed from \(oldValue) to \(zoomScale)")
             updateCamera()
         }
     }
@@ -30,12 +31,14 @@ final class LevelEditorScene: LevelSceneBase {
         cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
         addChild(cameraNode)
         camera = cameraNode
+        AppLog.scene.notice("Camera setup at position (\(cameraNode.position.x), \(cameraNode.position.y)) with size (\(size.width), \(size.height))")
         updateCamera()
     }
 
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
         cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        AppLog.scene.notice("Scene size changed from (\(oldSize.width), \(oldSize.height)) to (\(size.width), \(size.height))")
     }
 
     private func updateCamera() {
@@ -45,6 +48,7 @@ final class LevelEditorScene: LevelSceneBase {
     private func convertTouchLocation(_ touch: UITouch) -> CGPoint {
         // Get the touch location in the view
         guard let view = self.view else {
+            AppLog.touch.warning("convertTouchLocation called with nil view")
             return touch.location(in: self)
         }
         let locationInView = touch.location(in: view)
@@ -53,6 +57,7 @@ final class LevelEditorScene: LevelSceneBase {
         // When we have a camera, we need to account for the camera's transform
         let locationInScene = convertPoint(fromView: locationInView)
 
+        AppLog.touch.debug("viewLocation=(\(locationInView.x), \(locationInView.y)) -> sceneLocation=(\(locationInScene.x), \(locationInScene.y))")
         return locationInScene
     }
 
@@ -60,9 +65,12 @@ final class LevelEditorScene: LevelSceneBase {
         // When zoomed, we need to account for the camera's scale
         // The scene point is already in camera-transformed coordinates
         // We need to normalize based on the actual visible area, not the frame
-        guard let transform = layoutTransform else { return nil }
+        guard let transform = layoutTransform else {
+            AppLog.coordinates.warning("normalizedPoint called with nil layoutTransform")
+            return nil
+        }
         let result = transform.normalizedPoint(from: scenePoint, zoomScale: zoomScale)
-        print("🔍 normalizedPoint: scenePoint=\(scenePoint), zoomScale=\(zoomScale), result=\(String(describing: result))")
+        AppLog.coordinates.debug("scenePoint=(\(scenePoint.x), \(scenePoint.y)) zoomScale=\(zoomScale) -> normalized=(\(result?.x ?? 0), \(result?.y ?? 0))")
         return result
     }
 
@@ -73,15 +81,21 @@ final class LevelEditorScene: LevelSceneBase {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard playbackState == .paused else { return }
+        guard playbackState == .paused else {
+            AppLog.touch.debug("touchesBegan ignored - not paused")
+            return
+        }
         guard let touch = touches.first else { return }
         let location = convertTouchLocation(touch)
 
         // Check if we're touching a path point handle
         if let handle = pathPointHandleSelection(at: location) {
+            AppLog.touch.notice("Touch began on handle: laserID=\(handle.laserID ?? "nil") pointIndex=\(handle.pointIndex ?? -999)")
             draggingHandle = handle
             dragStartPosition = location
             handle.setHighlighted(true)
+        } else {
+            AppLog.touch.debug("Touch began at (\(location.x), \(location.y)) - no handle selected")
         }
     }
 
@@ -118,6 +132,7 @@ final class LevelEditorScene: LevelSceneBase {
 
             // If movement was minimal, treat as a tap to show settings
             if dragDistance < 10 {
+                AppLog.touch.notice("Handle tapped (drag distance \(dragDistance))")
                 // Notify delegate of handle tap to show settings
                 if let laserID = handle.laserID {
                     editorDelegate?.editorScene(self, didSelectLaserID: laserID)
@@ -131,6 +146,7 @@ final class LevelEditorScene: LevelSceneBase {
 
             // Otherwise, it's a drag - update the position
             guard let normalized = normalizedPoint(from: location) else {
+                AppLog.coordinates.warning("Failed to normalize point after drag")
                 // Reset handle if we couldn't normalize the point
                 if let dragStart = dragStartPosition {
                     handle.position = dragStart
@@ -140,6 +156,7 @@ final class LevelEditorScene: LevelSceneBase {
                 return
             }
 
+            AppLog.touch.notice("Handle dragged distance=\(dragDistance) to normalized=(\(normalized.x), \(normalized.y))")
             // Notify delegate of the drag
             if let laserID = handle.laserID, let pointIndex = handle.pointIndex {
                 editorDelegate?.editorScene(self, didDragPathPoint: laserID, pointIndex: pointIndex, to: normalized)
@@ -155,18 +172,24 @@ final class LevelEditorScene: LevelSceneBase {
         // Handle selection (only if we didn't drag)
         if playbackState == .paused && draggingHandle == nil {
             if let button = buttonSelection(at: location) {
+                AppLog.touch.notice("Button selected: \(button.0.id)")
                 editorDelegate?.editorScene(self, didSelectButtonID: button.0.id, hitAreaID: button.1?.id)
                 return
             }
 
             if let laser = laserSelection(at: location) {
+                AppLog.touch.notice("Laser selected: \(laser.id)")
                 editorDelegate?.editorScene(self, didSelectLaserID: laser.id)
                 return
             }
         }
 
         // Handle tap for adding new objects
-        guard let normalized = normalizedPoint(from: location) else { return }
+        guard let normalized = normalizedPoint(from: location) else {
+            AppLog.coordinates.warning("Failed to normalize tap location")
+            return
+        }
+        AppLog.touch.notice("Tap for new object at normalized=(\(normalized.x), \(normalized.y))")
         editorDelegate?.editorScene(self, didTapNormalized: normalized)
     }
 

@@ -36,6 +36,7 @@ final class AppCoordinator: ObservableObject {
         case gameplay
         case advancedMenu
         case levelEditor
+        case logViewer
     }
     @Published var screen: Screen = .mainMenu
     @Published var settings: GameSettings {
@@ -91,7 +92,12 @@ final class AppCoordinator: ObservableObject {
         guard settings.advancedModeEnabled else { return }
         screen = .advancedMenu
     }
-    
+
+    func showLogViewer() {
+        guard settings.advancedModeEnabled else { return }
+        screen = .logViewer
+    }
+
     func openLevelEditor(with level: Level?) {
         guard settings.advancedModeEnabled else { return }
         screenBeforeLevelEditor = screen

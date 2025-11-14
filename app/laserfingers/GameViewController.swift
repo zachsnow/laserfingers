@@ -50,6 +50,8 @@ struct RootContainerView: View {
             LevelSelectView()
         case .advancedMenu:
             AdvancedMenuView()
+        case .logViewer:
+            LogViewerView()
         case .levelEditor:
             if let editorViewModel = coordinator.levelEditorViewModel {
                 LevelEditorView(viewModel: editorViewModel)
@@ -252,6 +254,9 @@ struct AdvancedMenuView: View {
                 }
                 LaserButton(title: "Import Level Code") {
                     coordinator.presentImportSheet(initialPayload: nil)
+                }
+                LaserButton(title: "View Logs") {
+                    coordinator.showLogViewer()
                 }
                 LaserButton(title: "Reset") {
                     coordinator.resetProgress()
@@ -1071,5 +1076,24 @@ struct LaserButton: View {
     
     private var borderColor: Color {
         style == .secondary ? Color.pink.opacity(0.9) : .clear
+    }
+}
+
+// MARK: - Log Viewer
+
+struct LogViewerView: View {
+    @EnvironmentObject private var coordinator: AppCoordinator
+
+    var body: some View {
+        ZStack {
+            LogViewerScreen()
+            VStack {
+                Spacer()
+                LaserButton(title: "Back", style: .secondary) {
+                    coordinator.goToMainMenu()
+                }
+                .padding(menuContentPadding)
+            }
+        }
     }
 }
