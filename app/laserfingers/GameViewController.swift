@@ -123,14 +123,13 @@ struct SettingsView: View {
                 Toggle("Advanced Mode", isOn: $coordinator.settings.advancedModeEnabled)
                     .toggleStyle(SwitchToggleStyle(tint: .pink))
                 Divider()
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Visual Effects")
-                        .font(.headline)
-                    VisualEffectsToggleList(
-                        glowEnabled: $coordinator.settings.glowEnabled,
-                        blurEnabled: $coordinator.settings.blurEnabled
-                    )
-                }
+                Text("Visual Effects")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                VisualEffectsToggleList(
+                    glowEnabled: $coordinator.settings.glowEnabled,
+                    blurEnabled: $coordinator.settings.blurEnabled
+                )
                 Spacer()
                 LaserButton(title: "Back", style: .secondary) { coordinator.goToMainMenu() }
             }
@@ -858,6 +857,7 @@ struct LevelImportSheet: View {
     @State private var pendingImportMode: ImportMode?
     @State private var showConflictDialog = false
     @State private var isProcessing = false
+    @State private var isCodeExpanded = false
 
     private var importManager = LevelImportManager()
     private let initialPayload: String?
@@ -878,38 +878,6 @@ struct LevelImportSheet: View {
                 VStack(spacing: 20) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
-                            Text("Paste a level JSON blob or a Base64 share code below.")
-                                .font(.footnote)
-                                .foregroundColor(.white.opacity(0.8))
-
-                            TextEditor(text: $payload)
-                                .frame(minHeight: 220)
-                                .padding(8)
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.15))
-                                )
-                                .textInputAutocapitalization(.never)
-                                .disableAutocorrection(true)
-                                .keyboardType(.asciiCapable)
-                                .onChange(of: payload) {
-                                    parsePayload()
-                                }
-                                .onAppear {
-                                    parsePayload()
-                                }
-
-                            if let message = statusMessage {
-                                Text(message)
-                                    .foregroundColor(statusColor)
-                                    .font(.subheadline)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.vertical, 4)
-                                    .id("ImportStatusMessage")
-                            }
-
                             if let level = parsedLevel {
                                 VStack(alignment: .leading, spacing: 12) {
                                     VStack(alignment: .leading, spacing: 4) {
@@ -958,8 +926,63 @@ struct LevelImportSheet: View {
                                         .disabled(isProcessing)
                                     }
                                 }
-                                .padding(.top, 4)
                                 .id("ImportPreview")
+
+                                Button {
+                                    withAnimation {
+                                        isCodeExpanded.toggle()
+                                    }
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "chevron.right")
+                                            .rotationEffect(.degrees(isCodeExpanded ? 90 : 0))
+                                        Label("Code", systemImage: "doc.text")
+                                        Spacer()
+                                    }
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .padding()
+                                    .background(Color.white.opacity(0.05))
+                                    .cornerRadius(12)
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            if isCodeExpanded || parsedLevel == nil {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    if parsedLevel == nil {
+                                        Text("Paste a level JSON blob or a Base64 share code below.")
+                                            .font(.footnote)
+                                            .foregroundColor(.white.opacity(0.8))
+                                    }
+
+                                    TextEditor(text: $payload)
+                                        .frame(minHeight: 220)
+                                        .padding(8)
+                                        .background(Color.white.opacity(0.05))
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.white.opacity(0.15))
+                                        )
+                                        .textInputAutocapitalization(.never)
+                                        .disableAutocorrection(true)
+                                        .keyboardType(.asciiCapable)
+                                        .onChange(of: payload) {
+                                            parsePayload()
+                                        }
+                                        .onAppear {
+                                            parsePayload()
+                                        }
+
+                                    if let message = statusMessage {
+                                        Text(message)
+                                            .foregroundColor(statusColor)
+                                            .font(.subheadline)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .padding(.vertical, 4)
+                                            .id("ImportStatusMessage")
+                                    }
+                                }
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
