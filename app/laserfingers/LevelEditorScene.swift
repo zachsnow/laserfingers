@@ -102,7 +102,7 @@ final class LevelEditorScene: LevelSceneBase {
 
         // Check if we're touching a path point handle
         if let handle = pathPointHandleSelection(at: location) {
-            AppLog.touch.notice("Touch began on handle: laserID=\(handle.laserID ?? "nil") pointIndex=\(handle.pointIndex ?? -999)")
+            AppLog.touch.notice("Touch began on handle: ownerType=\(handle.ownerType) ownerID=\(handle.ownerID) endpointIndex=\(handle.endpointIndex) pointIndex=\(handle.pointIndex)")
             draggingHandle = handle
             dragStartPosition = location
             handle.setHighlighted(true)
@@ -153,10 +153,10 @@ final class LevelEditorScene: LevelSceneBase {
             if dragDistance < 10 {
                 AppLog.touch.notice("Handle tapped (drag distance \(dragDistance))")
                 // Notify delegate of handle tap to show settings
-                if let laserID = handle.laserID {
-                    editorDelegate?.editorScene(self, didSelectLaserID: laserID)
-                } else if let buttonID = handle.buttonID {
-                    editorDelegate?.editorScene(self, didSelectButtonID: buttonID, hitAreaID: nil)
+                if handle.ownerType == "laser" {
+                    editorDelegate?.editorScene(self, didSelectLaserID: handle.ownerID)
+                } else if handle.ownerType == "button" {
+                    editorDelegate?.editorScene(self, didSelectButtonID: handle.ownerID, hitAreaID: nil)
                 }
                 draggingHandle = nil
                 dragStartPosition = nil
@@ -177,10 +177,8 @@ final class LevelEditorScene: LevelSceneBase {
 
             AppLog.touch.notice("Handle dragged distance=\(dragDistance) to normalized=(\(normalized.x), \(normalized.y))")
             // Notify delegate of the drag
-            if let owner = pathPointOwner(for: handle), let pointIndex = handle.pointIndex {
-                // For segment laser end points, convert negative index to positive
-                let actualIndex = pointIndex < 0 ? -(pointIndex + 1) : pointIndex
-                editorDelegate?.editorScene(self, didDragPathPoint: owner, pointIndex: actualIndex, to: normalized)
+            if let owner = pathPointOwner(for: handle) {
+                editorDelegate?.editorScene(self, didDragPathPoint: owner, pointIndex: handle.pointIndex, to: normalized)
             }
 
             draggingHandle = nil
@@ -225,14 +223,14 @@ final class LevelEditorScene: LevelSceneBase {
     }
 
     private func updateLinesForHandle(_ handle: PathPointHandleNode) {
-        // Handle button endpoint lines
-        if let buttonID = handle.buttonID, let pointIndex = handle.pointIndex {
-            updateLinesForButtonHandle(handle, buttonID: buttonID, pointIndex: pointIndex)
-            return
+        if handle.ownerType == "button" {
+            updateLinesForButtonHandle(handle, buttonID: handle.ownerID, pointIndex: handle.pointIndex)
+        } else if handle.ownerType == "laser" {
+            updateLinesForLaserHandle(handle, laserID: handle.ownerID, pointIndex: handle.pointIndex)
         }
+    }
 
-        // Handle laser endpoint lines
-        guard let laserID = handle.laserID, let pointIndex = handle.pointIndex else { return }
+    private func updateLinesForLaserHandle(_ handle: PathPointHandleNode, laserID: String, pointIndex: Int) {
         guard let laser = level.lasers.first(where: { $0.id == laserID }) else { return }
 
         // Calculate which lines need updating based on the laser type and point index
@@ -373,9 +371,11 @@ final class LevelEditorScene: LevelSceneBase {
     }
 
     private func updateLineAtIndex(_ index: Int, forHandle handle: PathPointHandleNode) {
-        guard let laserID = handle.laserID, let pointIndex = handle.pointIndex else { return }
-        guard let laser = level.lasers.first(where: { $0.id == laserID }) else { return }
+        guard handle.ownerType == "laser" else { return }
+        guard let laser = level.lasers.first(where: { $0.id == handle.ownerID }) else { return }
         guard let transform = layoutTransform else { return }
+        let laserID = handle.ownerID
+        let pointIndex = handle.pointIndex
 
         let line = pathPointLines[index]
 
@@ -433,16 +433,16 @@ final class LevelEditorScene: LevelSceneBase {
     }
 
     private func pathPointOwner(for handle: PathPointHandleNode) -> PathPointOwner? {
-        if let buttonID = handle.buttonID {
-            return .button(id: buttonID)
-        } else if let laserID = handle.laserID, let pointIndex = handle.pointIndex {
-            guard let laser = level.lasers.first(where: { $0.id == laserID }) else { return nil }
+        if handle.ownerType == "button" {
+            return .button(id: handle.ownerID)
+        } else if handle.ownerType == "laser" {
+            guard let laser = level.lasers.first(where: { $0.id == handle.ownerID }) else { return nil }
 
             if laser is Level.RayLaser {
-                return .rayLaser(id: laserID)
+                return .rayLaser(id: handle.ownerID)
             } else if laser is Level.SegmentLaser {
-                // Negative index indicates end endpoint
-                return pointIndex < 0 ? .segmentLaserEnd(id: laserID) : .segmentLaserStart(id: laserID)
+                // endpointIndex 0 = start, 1 = end
+                return handle.endpointIndex == 1 ? .segmentLaserEnd(id: handle.ownerID) : .segmentLaserStart(id: handle.ownerID)
             }
         }
         return nil

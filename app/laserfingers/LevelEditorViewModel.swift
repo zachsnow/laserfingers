@@ -688,7 +688,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         )
         button = Level.Button(
             id: button.id,
-            endpoint: button.endpoint,
+            endpoints: [button.endpoint],
             timing: button.timing,
             hitLogic: button.hitLogic,
             required: button.required,
@@ -712,7 +712,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         } else {
             button = Level.Button(
                 id: button.id,
-                endpoint: button.endpoint,
+                endpoints: [button.endpoint],
                 timing: button.timing,
                 hitLogic: button.hitLogic,
                 required: button.required,
@@ -755,7 +755,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             color: "FFB703",
             thickness: 0.018,
             cadence: nil,
-            endpoint: endpointPath,
+            endpoints: [endpointPath],
             initialAngle: nil,  // Default to perpendicular
             rotationSpeed: 0,
             enabled: true
@@ -773,8 +773,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             color: "8ECAE6",
             thickness: 0.015,
             cadence: nil,
-            startEndpoint: startPath,
-            endEndpoint: endPath,
+            endpoints: [startPath, endPath],
             enabled: true
         )
         appendLaser(laser)
@@ -788,7 +787,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             color: "F72585",
             thickness: 0.012,
             cadence: nil,
-            endpoint: endpointPath,
+            endpoints: [endpointPath],
             initialAngle: nil,  // Default to 0
             rotationSpeed: 90 * .pi / 180,  // Convert degrees/sec to radians/sec
             enabled: true
@@ -840,7 +839,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         )
         return Level.Button(
             id: buttonID,
-            endpoint: Level.EndpointPath(points: [point], cycleSeconds: nil, t: 0),
+            endpoints: [Level.EndpointPath(points: [point], cycleSeconds: nil, t: 0)],
             timing: timing,
             hitLogic: .any,
             required: true,
@@ -894,7 +893,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         let hitAreas = button.hitAreas
         let updatedButton = Level.Button(
             id: state.buttonID,
-            endpoint: button.endpoint,
+            endpoints: [button.endpoint],
             timing: timing,
             hitLogic: button.hitLogic,
             required: state.required,
@@ -962,7 +961,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
                     color: state.color,
                     thickness: thickness,
                     cadence: laser.cadence,
-                    endpoint: rayLaser.endpoint,
+                    endpoints: [rayLaser.endpoint],
                     initialAngle: angle * .pi / 180,
                     rotationSpeed: speed * .pi / 180,
                     enabled: laser.enabled
@@ -980,7 +979,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
                     color: state.color,
                     thickness: thickness,
                     cadence: laser.cadence,
-                    endpoint: updatedPath,
+                    endpoints: [updatedPath],
                     initialAngle: rayLaser.initialAngle,  // Preserve nil
                     rotationSpeed: rayLaser.rotationSpeed,
                     enabled: laser.enabled
@@ -993,8 +992,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
                 color: state.color,
                 thickness: thickness,
                 cadence: laser.cadence,
-                startEndpoint: segmentLaser.startEndpoint,
-                endEndpoint: segmentLaser.endEndpoint,
+                endpoints: [segmentLaser.startEndpoint, segmentLaser.endEndpoint],
                 enabled: laser.enabled
             )
         } else {
@@ -1045,7 +1043,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
         let updatedButton = Level.Button(
             id: button.id,
-            endpoint: updatedPath,
+            endpoints: [updatedPath],
             timing: button.timing,
             hitLogic: button.hitLogic,
             required: button.required,
@@ -1075,7 +1073,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
         let updatedButton = Level.Button(
             id: button.id,
-            endpoint: updatedPath,
+            endpoints: [updatedPath],
             timing: button.timing,
             hitLogic: button.hitLogic,
             required: button.required,
@@ -1111,7 +1109,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             color: rayLaser.color,
             thickness: rayLaser.thickness,
             cadence: rayLaser.cadence,
-            endpoint: updatedPath,
+            endpoints: [updatedPath],
             initialAngle: rayLaser.initialAngle,
             rotationSpeed: rayLaser.rotationSpeed,
             enabled: rayLaser.enabled
@@ -1141,7 +1139,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             color: rayLaser.color,
             thickness: rayLaser.thickness,
             cadence: rayLaser.cadence,
-            endpoint: updatedPath,
+            endpoints: [updatedPath],
             initialAngle: rayLaser.initialAngle,
             rotationSpeed: rayLaser.rotationSpeed,
             enabled: rayLaser.enabled
@@ -1187,7 +1185,7 @@ extension LevelEditorViewModel: LevelEditorSceneDelegate {
                 color: rayLaser.color,
                 thickness: rayLaser.thickness,
                 cadence: rayLaser.cadence,
-                endpoint: updatedEndpoint,
+                endpoints: [updatedEndpoint],
                 initialAngle: rayLaser.initialAngle,
                 rotationSpeed: rayLaser.rotationSpeed,
                 enabled: rayLaser.enabled
@@ -1203,8 +1201,7 @@ extension LevelEditorViewModel: LevelEditorSceneDelegate {
                 color: segmentLaser.color,
                 thickness: segmentLaser.thickness,
                 cadence: segmentLaser.cadence,
-                startEndpoint: updatedEndpoint,
-                endEndpoint: segmentLaser.endEndpoint,
+                endpoints: [updatedEndpoint, segmentLaser.endEndpoint],
                 enabled: segmentLaser.enabled
             )
 
@@ -1218,8 +1215,7 @@ extension LevelEditorViewModel: LevelEditorSceneDelegate {
                 color: segmentLaser.color,
                 thickness: segmentLaser.thickness,
                 cadence: segmentLaser.cadence,
-                startEndpoint: segmentLaser.startEndpoint,
-                endEndpoint: updatedEndpoint,
+                endpoints: [segmentLaser.startEndpoint, updatedEndpoint],
                 enabled: segmentLaser.enabled
             )
 
@@ -1230,7 +1226,7 @@ extension LevelEditorViewModel: LevelEditorSceneDelegate {
             let updatedEndpoint = button.endpoint.updatingPoint(at: pointIndex, to: snapped)
             workingLevel.buttons[buttonIndex] = Level.Button(
                 id: button.id,
-                endpoint: updatedEndpoint,
+                endpoints: [updatedEndpoint],
                 timing: button.timing,
                 hitLogic: button.hitLogic,
                 required: button.required,

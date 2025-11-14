@@ -34,16 +34,18 @@
         }
       ],
       "effects": [],
-      "endpoint": {
-        "points": [
-          {
-            "x": -0.5,
-            "y": 0.0
-          }
-        ],
-        "cycleSeconds": null,
-        "t": 0
-      }
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -0.5,
+              "y": 0.0
+            }
+          ],
+          "cycleSeconds": null,
+          "t": 0
+        }
+      ]
     },
     {
       "id": "east-drainer",
@@ -73,16 +75,18 @@
         }
       ],
       "effects": [],
-      "endpoint": {
-        "points": [
-          {
-            "x": 0.5,
-            "y": 0.0
-          }
-        ],
-        "cycleSeconds": null,
-        "t": 0
-      }
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": 0.5,
+              "y": 0.0
+            }
+          ],
+          "cycleSeconds": null,
+          "t": 0
+        }
+      ]
     }
   ],
   "lasers": [

@@ -33,16 +33,18 @@
         }
       ],
       "effects": [],
-      "endpoint": {
-        "points": [
-          {
-            "x": 0.0,
-            "y": 0.0
-          }
-        ],
-        "cycleSeconds": null,
-        "t": 0
-      }
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            }
+          ],
+          "cycleSeconds": null,
+          "t": 0
+        }
+      ]
     }
   ],
   "lasers": [
@@ -73,33 +75,35 @@
       "thickness": 0.012,
       "enabled": true,
       "type": "segment",
-      "startEndpoint": {
-        "points": [
-          {
-            "x": -0.9,
-            "y": -0.5
-          },
-          {
-            "x": -0.3,
-            "y": -0.5
-          }
-        ],
-        "cycleSeconds": 5.0
-      },
-      "endEndpoint": {
-        "points": [
-          {
-            "x": 0.3,
-            "y": -0.5
-          },
-          {
-            "x": 0.9,
-            "y": -0.5
-          }
-        ],
-        "cycleSeconds": 4.0,
-        "t": 0.5
-      }
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -0.9,
+              "y": -0.5
+            },
+            {
+              "x": -0.3,
+              "y": -0.5
+            }
+          ],
+          "cycleSeconds": 5.0
+        },
+        {
+          "points": [
+            {
+              "x": 0.3,
+              "y": -0.5
+            },
+            {
+              "x": 0.9,
+              "y": -0.5
+            }
+          ],
+          "cycleSeconds": 4.0,
+          "t": 0.5
+        }
+      ]
     }
   ],
   "unlocks": []

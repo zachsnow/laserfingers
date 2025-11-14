@@ -163,6 +163,11 @@ struct Level: Identifiable, Codable, Hashable {
         /// Animation paths for laser position/shape. Ray lasers have 1, segment lasers have 2.
         var endpoints: [EndpointPath]  // var so subclasses can set in decoder
 
+        /// Convenience accessor for single-endpoint objects (read-only)
+        var endpoint: EndpointPath {
+            endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)])
+        }
+
         /// Dynamically dispatched equality check - subclasses override to include their specific properties
         func isEqual(to other: Laser) -> Bool {
             return id == other.id &&
@@ -261,11 +266,6 @@ struct Level: Identifiable, Codable, Hashable {
         /// Rotation speed in radians per second.
         let rotationSpeed: Double
 
-        /// Convenience accessor for single-endpoint ray lasers (read-only)
-        var endpoint: EndpointPath {
-            endpoints.first ?? EndpointPath(points: [NormalizedPoint(x: 0, y: 0)])
-        }
-
         private enum CodingKeys: String, CodingKey {
             case endpoints
             case initialAngle
@@ -351,8 +351,8 @@ struct Level: Identifiable, Codable, Hashable {
             case endpoints
         }
 
-        init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
-             endpoints: [EndpointPath], enabled: Bool = true) {
+        override init(id: String, color: String, thickness: CGFloat, cadence: [CadenceStep]?,
+                      endpoints: [EndpointPath], enabled: Bool = true) {
             assert(endpoints.count == 2, "SegmentLaser must have exactly 2 endpoints")
             super.init(id: id, color: color, thickness: thickness, cadence: cadence, endpoints: endpoints, enabled: enabled)
         }

@@ -32,16 +32,18 @@
         }
       ],
       "effects": [],
-      "endpoint": {
-        "points": [
-          {
-            "x": 0.0,
-            "y": 0.0
-          }
-        ],
-        "cycleSeconds": null,
-        "t": 0
-      }
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            }
+          ],
+          "cycleSeconds": null,
+          "t": 0
+        }
+      ]
     }
   ],
   "lasers": [
