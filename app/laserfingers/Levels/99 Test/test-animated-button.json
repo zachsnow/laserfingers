@@ -1,0 +1,56 @@
+{
+  "id": "test-animated-button",
+  "title": "Animated Button Test",
+  "description": "Test level for animated button endpoints",
+  "backgroundImage": "../../Images/bg.jpg",
+  "maxTouches": 1,
+  "buttons": [
+    {
+      "id": "moving-button",
+      "timing": {
+        "chargeSeconds": 3.0,
+        "holdSeconds": null,
+        "drainSeconds": 1.0
+      },
+      "hitLogic": "any",
+      "required": true,
+      "color": {
+        "fill": "#4CC9F0",
+        "glow": "#A3CEFF",
+        "rim": "#FFFFFF"
+      },
+      "hitAreas": [
+        {
+          "id": "main-pad",
+          "shape": {
+            "type": "circle",
+            "radius": 0.25
+          },
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "effects": [],
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": 0.0,
+              "y": -1.0
+            },
+            {
+              "x": 0.0,
+              "y": 1.0
+            }
+          ],
+          "cycleSeconds": 4.0,
+          "t": 0
+        }
+      ]
+    }
+  ],
+  "lasers": [],
+  "unlocks": []
+}
