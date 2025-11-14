@@ -853,19 +853,25 @@ struct LevelImportSheet: View {
     @State private var payload: String
     @State private var statusMessage: String?
     @State private var statusColor: Color = .white.opacity(0.8)
-    @State private var importSuccess: Level?
+    @State private var parsedLevel: Level?
     @State private var pendingConflictImport: LevelImportManager.PreparedImport?
+    @State private var pendingImportMode: ImportMode?
     @State private var showConflictDialog = false
     @State private var isProcessing = false
-    
+
     private var importManager = LevelImportManager()
     private let initialPayload: String?
-    
+
+    enum ImportMode {
+        case play
+        case edit
+    }
+
     init(initialPayload: String?) {
         self.initialPayload = initialPayload
         _payload = State(initialValue: initialPayload ?? "")
     }
-    
+
     var body: some View {
         NavigationStack {
             ScrollViewReader { proxy in
@@ -875,18 +881,26 @@ struct LevelImportSheet: View {
                             Text("Paste a level JSON blob or a Base64 share code below.")
                                 .font(.footnote)
                                 .foregroundColor(.white.opacity(0.8))
-                        TextEditor(text: $payload)
-                            .frame(minHeight: 220)
-                            .padding(8)
-                            .background(Color.white.opacity(0.05))
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.white.opacity(0.15))
-                            )
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                            .keyboardType(.asciiCapable)
+
+                            TextEditor(text: $payload)
+                                .frame(minHeight: 220)
+                                .padding(8)
+                                .background(Color.white.opacity(0.05))
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.white.opacity(0.15))
+                                )
+                                .textInputAutocapitalization(.never)
+                                .disableAutocorrection(true)
+                                .keyboardType(.asciiCapable)
+                                .onChange(of: payload) {
+                                    parsePayload()
+                                }
+                                .onAppear {
+                                    parsePayload()
+                                }
+
                             if let message = statusMessage {
                                 Text(message)
                                     .foregroundColor(statusColor)
@@ -895,57 +909,60 @@ struct LevelImportSheet: View {
                                     .padding(.vertical, 4)
                                     .id("ImportStatusMessage")
                             }
-                            if let level = importSuccess {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Imported “\(level.title)”")
-                                        .font(.headline)
-                                        .id("ImportSuccessMessage")
-                                    Button {
-                                        startImportedLevel(level)
-                                    } label: {
-                                        Label("Play Now", systemImage: "play.fill")
+
+                            if let level = parsedLevel {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("ID: \(level.id)")
+                                            .font(.caption)
+                                            .foregroundColor(.white.opacity(0.6))
+                                        Text(level.title)
                                             .font(.headline)
-                                            .padding()
-                                            .frame(maxWidth: .infinity)
-                                            .background(LinearGradient(
-                                                colors: [.pink, .purple],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            ))
-                                            .foregroundColor(.white)
-                                            .cornerRadius(16)
+                                        if !level.description.isEmpty {
+                                            Text(level.description)
+                                                .font(.subheadline)
+                                                .foregroundColor(.white.opacity(0.8))
+                                        }
+                                    }
+                                    .padding(.vertical, 8)
+
+                                    HStack(spacing: 12) {
+                                        Button {
+                                            startImport(mode: .play)
+                                        } label: {
+                                            Label("Import", systemImage: "square.and.arrow.down")
+                                                .font(.headline)
+                                                .padding()
+                                                .frame(maxWidth: .infinity)
+                                                .background(LinearGradient(
+                                                    colors: [.pink, .purple],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                ))
+                                                .foregroundColor(.white)
+                                                .cornerRadius(16)
+                                        }
+                                        .disabled(isProcessing)
+
+                                        Button {
+                                            startImport(mode: .edit)
+                                        } label: {
+                                            Label("Edit", systemImage: "pencil")
+                                                .font(.headline)
+                                                .padding()
+                                                .frame(maxWidth: .infinity)
+                                                .background(Color.white.opacity(0.15))
+                                                .foregroundColor(.white)
+                                                .cornerRadius(16)
+                                        }
+                                        .disabled(isProcessing)
                                     }
                                 }
                                 .padding(.top, 4)
+                                .id("ImportPreview")
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    HStack {
-                        Button("Cancel") {
-                            closeSheet()
-                        }
-                        .foregroundColor(.white.opacity(0.8))
-                        Spacer()
-                    Button(action: startImport) {
-                            if isProcessing {
-                                ProgressView()
-                                    .progressViewStyle(.circular)
-                                    .tint(.white)
-                                    .frame(width: 24, height: 24)
-                                    .padding(.vertical, 6)
-                                    .padding(.horizontal, 24)
-                            } else {
-                                Text("Import Level")
-                                    .font(.headline)
-                                    .padding(.vertical, 12)
-                                    .padding(.horizontal, 24)
-                            }
-                        }
-                        .disabled(payload.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isProcessing)
-                        .background(isProcessing ? Color.white.opacity(0.15) : Color.pink)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
                     }
                 }
                 .padding()
@@ -954,10 +971,10 @@ struct LevelImportSheet: View {
                         proxy.scrollTo("ImportStatusMessage", anchor: .bottom)
                     }
                 }
-                .onChange(of: importSuccessKey) {
-                    if importSuccess != nil {
+                .onChange(of: parsedLevel?.id) {
+                    if parsedLevel != nil {
                         withAnimation {
-                            proxy.scrollTo("ImportSuccessMessage", anchor: .bottom)
+                            proxy.scrollTo("ImportPreview", anchor: .bottom)
                         }
                     }
                 }
@@ -973,28 +990,53 @@ struct LevelImportSheet: View {
             .confirmationDialog("Level already exists", isPresented: $showConflictDialog, presenting: pendingConflictImport) { prepared in
                 Button("Overwrite", role: .destructive) {
                     pendingConflictImport = nil
-                    finalizeImport(prepared: prepared, overwrite: true)
+                    if let mode = pendingImportMode {
+                        finalizeImport(prepared: prepared, overwrite: true, mode: mode)
+                    }
                 }
                 Button("Create New Copy") {
                     pendingConflictImport = nil
-                    finalizeImport(prepared: prepared, overwrite: false)
+                    if let mode = pendingImportMode {
+                        finalizeImport(prepared: prepared, overwrite: false, mode: mode)
+                    }
                 }
                 Button("Cancel", role: .cancel) {
                     pendingConflictImport = nil
+                    pendingImportMode = nil
                 }
             } message: { prepared in
-                Text("“\(prepared.level.title)” already exists in Downloaded. Overwrite it or create a new copy?")
+                Text("\"\(prepared.level.title)\" already exists in Downloaded. Overwrite it or create a new copy?")
             }
         }
         .presentationDetents([.medium, .large])
         .interactiveDismissDisabled(isProcessing)
     }
     
-    private func startImport() {
+    private func parsePayload() {
         statusMessage = nil
-        importSuccess = nil
+        parsedLevel = nil
+
+        let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        do {
+            let prepared = try importManager.prepareImport(from: payload)
+            parsedLevel = prepared.level
+            statusMessage = nil
+            statusColor = .white.opacity(0.8)
+        } catch {
+            statusMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            statusColor = .red
+        }
+    }
+
+    private func startImport(mode: ImportMode) {
+        guard let _ = parsedLevel else { return }
+
+        pendingImportMode = mode
         pendingConflictImport = nil
         showConflictDialog = false
+
         do {
             let prepared = try importManager.prepareImport(from: payload)
             if prepared.match != nil {
@@ -1002,50 +1044,45 @@ struct LevelImportSheet: View {
                 showConflictDialog = true
                 return
             }
-            finalizeImport(prepared: prepared, overwrite: false)
+            finalizeImport(prepared: prepared, overwrite: false, mode: mode)
         } catch {
             statusMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             statusColor = .red
             isProcessing = false
         }
     }
-    
-    private func finalizeImport(prepared: LevelImportManager.PreparedImport, overwrite: Bool) {
+
+    private func finalizeImport(prepared: LevelImportManager.PreparedImport, overwrite: Bool, mode: ImportMode) {
         isProcessing = true
         do {
             let savedLevel = try importManager.persist(prepared, overwrite: overwrite)
             coordinator.handleImportSuccess(level: savedLevel)
-            statusMessage = "Imported “\(savedLevel.title)” successfully."
-            statusColor = .green
-            importSuccess = savedLevel
-            payload = ""
+
+            // Close sheet and take action based on mode
+            closeSheet()
+
+            switch mode {
+            case .play:
+                // Start playing the imported level
+                if let entry = coordinator.levelProgress.first(where: {
+                    $0.level.uuid == savedLevel.uuid || $0.level.id == savedLevel.id
+                }) {
+                    coordinator.startLevel(entry.level)
+                }
+            case .edit:
+                // Open in editor
+                coordinator.openLevelEditor(with: savedLevel)
+            }
         } catch {
             statusMessage = error.localizedDescription
             statusColor = .red
-        }
-        isProcessing = false
-    }
-    
-    private func startImportedLevel(_ level: Level) {
-        if let uuid = level.uuid,
-           let entry = coordinator.levelProgress.first(where: { $0.level.uuid == uuid }) {
-            coordinator.startLevel(entry.level)
-            closeSheet()
-            return
-        }
-        if let entry = coordinator.levelProgress.first(where: { $0.level.id == level.id }) {
-            coordinator.startLevel(entry.level)
-            closeSheet()
+            isProcessing = false
         }
     }
-    
+
     private func closeSheet() {
         coordinator.dismissImportSheet()
         dismiss()
-    }
-    
-    private var importSuccessKey: String? {
-        importSuccess?.uuid?.uuidString ?? importSuccess?.id
     }
     
 }
