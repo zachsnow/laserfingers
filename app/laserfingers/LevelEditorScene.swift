@@ -13,9 +13,57 @@ final class LevelEditorScene: LevelSceneBase {
 
     private var draggingHandle: PathPointHandleNode?
     private var dragStartPosition: CGPoint?
+    private let cameraNode = SKCameraNode()
+
+    var zoomScale: CGFloat = 1.0 {
+        didSet {
+            updateCamera()
+        }
+    }
 
     override func didMove(to view: SKView) {
         super.didMove(to: view)
+        setupCamera()
+    }
+
+    private func setupCamera() {
+        cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        addChild(cameraNode)
+        camera = cameraNode
+        updateCamera()
+    }
+
+    override func didChangeSize(_ oldSize: CGSize) {
+        super.didChangeSize(oldSize)
+        cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+    }
+
+    private func updateCamera() {
+        cameraNode.setScale(1.0 / zoomScale)
+    }
+
+    private func convertTouchLocation(_ touch: UITouch) -> CGPoint {
+        // Get the touch location in the view
+        guard let view = self.view else {
+            return touch.location(in: self)
+        }
+        let locationInView = touch.location(in: view)
+
+        // Convert from view coordinates to scene coordinates
+        // When we have a camera, we need to account for the camera's transform
+        let locationInScene = convertPoint(fromView: locationInView)
+
+        return locationInScene
+    }
+
+    override func normalizedPoint(from scenePoint: CGPoint) -> Level.NormalizedPoint? {
+        // When zoomed, we need to account for the camera's scale
+        // The scene point is already in camera-transformed coordinates
+        // We need to normalize based on the actual visible area, not the frame
+        guard let transform = layoutTransform else { return nil }
+        let result = transform.normalizedPoint(from: scenePoint, zoomScale: zoomScale)
+        print("🔍 normalizedPoint: scenePoint=\(scenePoint), zoomScale=\(zoomScale), result=\(String(describing: result))")
+        return result
     }
 
     override func setPlaybackState(_ state: PlaybackState) {
@@ -27,7 +75,7 @@ final class LevelEditorScene: LevelSceneBase {
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard playbackState == .paused else { return }
         guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
+        let location = convertTouchLocation(touch)
 
         // Check if we're touching a path point handle
         if let handle = pathPointHandleSelection(at: location) {
@@ -40,7 +88,7 @@ final class LevelEditorScene: LevelSceneBase {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard playbackState == .paused else { return }
         guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
+        let location = convertTouchLocation(touch)
 
         // Update handle position during drag
         if let handle = draggingHandle {
@@ -52,7 +100,7 @@ final class LevelEditorScene: LevelSceneBase {
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard let touch = touches.first else { return }
-        let location = touch.location(in: self)
+        let location = convertTouchLocation(touch)
 
         // Handle drag completion or tap
         if let handle = draggingHandle, playbackState == .paused {

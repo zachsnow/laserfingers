@@ -1329,6 +1329,18 @@ struct NormalizedLayoutTransform {
             return Level.NormalizedPoint(x: dy / shortScale, y: dx / shortScale)
         }
     }
+
+    func normalizedPoint(from scenePoint: CGPoint, zoomScale: CGFloat) -> Level.NormalizedPoint? {
+        let dx = scenePoint.x - frame.midX
+        let dy = scenePoint.y - frame.midY
+        // When zoomed out (e.g., zoomScale 0.5), we show 2x the area, so divide by zoomScale
+        let effectiveScale = shortScale / zoomScale
+        if shortAxisIsHorizontal {
+            return Level.NormalizedPoint(x: dx / effectiveScale, y: dy / effectiveScale)
+        } else {
+            return Level.NormalizedPoint(x: dy / effectiveScale, y: dx / effectiveScale)
+        }
+    }
     
     private func convert(shortComponent: CGFloat, longComponent: CGFloat) -> CGPoint {
         if shortAxisIsHorizontal {

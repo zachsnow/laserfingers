@@ -4,15 +4,61 @@ import SpriteKit
 struct LevelEditorView: View {
     @EnvironmentObject private var coordinator: AppCoordinator
     @ObservedObject var viewModel: LevelEditorViewModel
-    
+    @State private var lastZoomScale: CGFloat = 1.0
+
     var body: some View {
         ZStack(alignment: .top) {
-            SpriteView(scene: viewModel.scene)
-                .id(ObjectIdentifier(viewModel.scene))
-                .ignoresSafeArea()
-            toolbar
-                .padding(.horizontal, 20)
-                .padding(.top, 32)
+            ZStack {
+                SpriteView(scene: viewModel.scene)
+                    .id(ObjectIdentifier(viewModel.scene))
+                    .ignoresSafeArea()
+                    .gesture(
+                        MagnificationGesture()
+                            .onChanged { value in
+                                let newScale = (lastZoomScale * value).clamped(to: 0.25...4.0)
+                                viewModel.zoomScale = newScale
+                            }
+                            .onEnded { value in
+                                lastZoomScale = viewModel.zoomScale
+                            }
+                    )
+
+                // Show gameplay area border when zoomed out
+                if viewModel.zoomScale < 1.0 {
+                    GameplayAreaBorder(zoomScale: viewModel.zoomScale)
+                        .allowsHitTesting(false)
+                }
+            }
+
+            VStack {
+                toolbar
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                Spacer()
+            }
+
+            // Zoom reset button in lower right
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    if viewModel.zoomScale != 1.0 {
+                        Button {
+                            viewModel.resetZoom()
+                            lastZoomScale = 1.0
+                        } label: {
+                            Image(systemName: "1.magnifyingglass")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(.ultraThinMaterial.opacity(0.8))
+                                .clipShape(Circle())
+                        }
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 20)
+                    }
+                }
+            }
         }
         .sheet(item: $viewModel.pendingLevelAction, onDismiss: viewModel.dismissLevelAction) { action in
             switch action {
@@ -1000,5 +1046,22 @@ private struct ViewSourceSheet: View {
         } catch {
             errorMessage = "Invalid JSON: \(error.localizedDescription)"
         }
+    }
+}
+
+private struct GameplayAreaBorder: View {
+    let zoomScale: CGFloat
+
+    var body: some View {
+        GeometryReader { geometry in
+            let scaledWidth = geometry.size.width * zoomScale
+            let scaledHeight = geometry.size.height * zoomScale
+
+            Rectangle()
+                .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                .frame(width: scaledWidth, height: scaledHeight)
+                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+        }
+        .ignoresSafeArea()
     }
 }

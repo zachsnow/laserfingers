@@ -208,6 +208,11 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     @Published var isResetConfirmationPresented = false
     @Published private(set) var timelineSeconds: TimeInterval = 0
     @Published var activeSelection: Selection?
+    @Published var zoomScale: CGFloat = 1.0 {
+        didSet {
+            scene.zoomScale = zoomScale
+        }
+    }
     private var pendingTwoPointTool: (tool: Tool, start: Level.NormalizedPoint)?
     
     struct ButtonSettingsState {
@@ -480,8 +485,16 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         isResetConfirmationPresented = false
         pendingTwoPointTool = nil
     }
-    
-    
+
+    func resetZoom() {
+        zoomScale = 1.0
+    }
+
+    func adjustZoom(by delta: CGFloat) {
+        let newScale = (zoomScale + delta).clamped(to: 0.25...4.0)
+        zoomScale = newScale
+    }
+
     private func pushUndoState() {
         undoStack.append(workingLevel)
         if undoStack.count > 50 {
