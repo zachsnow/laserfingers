@@ -72,6 +72,8 @@ final class LaserGameScene: LevelSceneBase {
     
     override func advanceTimeline(delta: TimeInterval, currentTime: TimeInterval) {
         super.advanceTimeline(delta: delta, currentTime: currentTime)
+        // Continue animating but ignore button/laser interactions when won/lost
+        guard session.status == .running else { return }
         checkLaserHits(currentTime: currentTime)
         evaluateWinCondition()
     }

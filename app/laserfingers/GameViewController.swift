@@ -269,11 +269,11 @@ struct AdvancedMenuView: View {
                             .shadow(color: Color.pink.opacity(0.4), radius: 8, x: 0, y: 4)
                     }
                     .buttonStyle(.plain)
-                    LaserButton(title: "Reset") {
-                        coordinator.resetProgress()
-                    }
                     LaserButton(title: "Unlock All Levels") {
                         coordinator.unlockAllLevels()
+                    }
+                    LaserButton(title: "Reset") {
+                        coordinator.resetProgress()
                     }
                     Spacer()
                 }
