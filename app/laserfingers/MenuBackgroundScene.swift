@@ -4,11 +4,12 @@ final class MenuBackgroundScene: SKScene {
     private let baseNode = SKSpriteNode(color: SKColor(red: 0.04, green: 0.01, blue: 0.08, alpha: 1), size: .zero)
     private let glowNode = SKShapeNode(circleOfRadius: 240)
     private let gridNode = SKShapeNode()
-    
+    private var laserNodes: [SKShapeNode] = []
+
     override init() {
         super.init(size: CGSize(width: 1920, height: 1080))
         scaleMode = .resizeFill
-        backgroundColor = .black
+        backgroundColor = .clear
         setupNodes()
     }
     
