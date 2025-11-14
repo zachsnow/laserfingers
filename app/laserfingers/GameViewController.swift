@@ -682,6 +682,31 @@ struct GameHUDView: View {
     }
 }
 
+// MARK: - Shared Overlay Container
+
+private struct GameOverlayContainer<Content: View>: View {
+    let maxWidth: CGFloat
+    let content: Content
+
+    init(maxWidth: CGFloat = 320, @ViewBuilder content: () -> Content) {
+        self.maxWidth = maxWidth
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.65).ignoresSafeArea()
+            VStack(spacing: 16) { content }
+                .padding()
+                .frame(maxWidth: maxWidth)
+                .background(Color.black.opacity(0.85))
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        }
+    }
+}
+
+// MARK: - Game Overlays
+
 struct VictoryOverlay: View {
     let title: String
     let message: String
@@ -689,26 +714,19 @@ struct VictoryOverlay: View {
     let primaryAction: () -> Void
     let restartAction: () -> Void
     let exitAction: () -> Void
-    
+
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.65).ignoresSafeArea()
-            VStack(spacing: 16) {
-                Text(title)
-                    .font(.largeTitle.bold())
-                Text(message)
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.white.opacity(0.75))
-                LaserButton(title: primaryTitle, action: primaryAction)
-                HStack(spacing: 12) {
-                    LaserButton(title: "Restart", style: .secondary, action: restartAction)
-                    LaserButton(title: "Exit", style: .secondary, action: exitAction)
-                }
+        GameOverlayContainer(maxWidth: 360) {
+            Text(title)
+                .font(.largeTitle.bold())
+            Text(message)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.white.opacity(0.75))
+            LaserButton(title: primaryTitle, action: primaryAction)
+            HStack(spacing: 12) {
+                LaserButton(title: "Restart", style: .secondary, action: restartAction)
+                LaserButton(title: "Exit", style: .secondary, action: exitAction)
             }
-            .padding()
-            .frame(maxWidth: 360)
-            .background(Color.black.opacity(0.85))
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
     }
 }
@@ -718,23 +736,16 @@ struct DefeatOverlay: View {
     let message: String
     let retryAction: () -> Void
     let exitAction: () -> Void
-    
+
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.65).ignoresSafeArea()
-            VStack(spacing: 16) {
-                Text(title)
-                    .font(.largeTitle.bold())
-                Text(message)
-                    .multilineTextAlignment(.center)
-                    .foregroundColor(.white.opacity(0.75))
-                LaserButton(title: "Try Again", action: retryAction)
-                LaserButton(title: "Exit", style: .secondary, action: exitAction)
-            }
-            .padding()
-            .frame(maxWidth: 320)
-            .background(Color.black.opacity(0.85))
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        GameOverlayContainer {
+            Text(title)
+                .font(.largeTitle.bold())
+            Text(message)
+                .multilineTextAlignment(.center)
+                .foregroundColor(.white.opacity(0.75))
+            LaserButton(title: "Try Again", action: retryAction)
+            LaserButton(title: "Exit", style: .secondary, action: exitAction)
         }
     }
 }
@@ -743,26 +754,18 @@ struct PauseOverlay: View {
     let resumeAction: () -> Void
     let restartAction: () -> Void
     let exitAction: () -> Void
-    
+
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.65).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text("Paused")
-                    .font(.largeTitle.bold())
-                Text("Take a breath, lasers will wait.")
-                    .foregroundColor(.white.opacity(0.8))
-                LaserButton(title: "Resume", action: resumeAction)
-                HStack(spacing: 12) {
-                    LaserButton(title: "Restart", style: .secondary, action: restartAction)
-                    LaserButton(title: "Exit", style: .secondary, action: exitAction)
-                }
+        GameOverlayContainer {
+            Text("Paused")
+                .font(.largeTitle.bold())
+            Text("Take a breath, lasers will wait.")
+                .foregroundColor(.white.opacity(0.8))
+            LaserButton(title: "Resume", action: resumeAction)
+            HStack(spacing: 12) {
+                LaserButton(title: "Restart", style: .secondary, action: restartAction)
+                LaserButton(title: "Exit", style: .secondary, action: exitAction)
             }
-            .padding(menuContentPadding)
-            .background(Color.black.opacity(0.8))
-            .cornerRadius(24)
-            .shadow(color: .black.opacity(0.4), radius: 20)
-            .padding()
         }
     }
 }
