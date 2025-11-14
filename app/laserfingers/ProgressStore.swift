@@ -7,6 +7,8 @@ struct GameSettings: Codable {
     var infiniteSlotsEnabled: Bool = false
     var glowEnabled: Bool = true
     var blurEnabled: Bool = true
+    var editorSnapInterval: Double? = 0.2
+    var editorGridEnabled: Bool = false
 
     init() {}
 
@@ -17,6 +19,8 @@ struct GameSettings: Codable {
         case infiniteSlotsEnabled
         case glowEnabled
         case blurEnabled
+        case editorSnapInterval
+        case editorGridEnabled
     }
 
     init(from decoder: Decoder) throws {
@@ -27,6 +31,8 @@ struct GameSettings: Codable {
         infiniteSlotsEnabled = try container.decodeIfPresent(Bool.self, forKey: .infiniteSlotsEnabled) ?? false
         glowEnabled = try container.decodeIfPresent(Bool.self, forKey: .glowEnabled) ?? true
         blurEnabled = try container.decodeIfPresent(Bool.self, forKey: .blurEnabled) ?? true
+        editorSnapInterval = try container.decodeIfPresent(Double?.self, forKey: .editorSnapInterval) ?? 0.2
+        editorGridEnabled = try container.decodeIfPresent(Bool.self, forKey: .editorGridEnabled) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -37,6 +43,8 @@ struct GameSettings: Codable {
         try container.encode(infiniteSlotsEnabled, forKey: .infiniteSlotsEnabled)
         try container.encode(glowEnabled, forKey: .glowEnabled)
         try container.encode(blurEnabled, forKey: .blurEnabled)
+        try container.encode(editorSnapInterval, forKey: .editorSnapInterval)
+        try container.encode(editorGridEnabled, forKey: .editorGridEnabled)
     }
 }
 

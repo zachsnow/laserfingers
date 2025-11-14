@@ -1,6 +1,7 @@
 import Foundation
 import CoreGraphics
 import Combine
+import SwiftUI
 
 final class LevelEditorViewModel: ObservableObject, Identifiable {
     enum Mode {
@@ -109,10 +110,6 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         }
     }
     
-    struct EditorOptions {
-        var snapEnabled: Bool = true
-        var snapInterval: CGFloat = 0.1
-    }
     
     struct EditorLevelSnapshot: Identifiable, Equatable {
         enum BackgroundStyle: Equatable {
@@ -188,15 +185,37 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     let id = UUID()
     let mode: Mode
     let sourceLevel: Level?
-    let settings: GameSettings
+    private let settingsBinding: Binding<GameSettings>
     let scene: LevelEditorScene
+
+    private var settings: GameSettings {
+        get { settingsBinding.wrappedValue }
+        set { settingsBinding.wrappedValue = newValue }
+    }
     
     @Published private(set) var workingLevel: EditorLevelSnapshot
     @Published var currentTool: Tool = .circle
     @Published var playbackState: PlaybackState = .playing
-    @Published var options = EditorOptions()
     @Published private(set) var undoStack: [EditorLevelSnapshot] = []
     @Published private(set) var redoStack: [EditorLevelSnapshot] = []
+
+    var snapInterval: CGFloat? {
+        get { settings.editorSnapInterval.map { CGFloat($0) } }
+        set {
+            var newSettings = settings
+            newSettings.editorSnapInterval = newValue.map { Double($0) }
+            settings = newSettings
+        }
+    }
+
+    var isGridEnabled: Bool {
+        get { settings.editorGridEnabled }
+        set {
+            var newSettings = settings
+            newSettings.editorGridEnabled = newValue
+            settings = newSettings
+        }
+    }
 
     var isDownloadedLevel: Bool {
         // Check if the level has a UUID, which indicates it's from the Downloaded pack
@@ -274,7 +293,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         }
     }
     
-    init(level: Level?, settings: GameSettings) {
+    init(level: Level?, settings: Binding<GameSettings>) {
         let snapshot: EditorLevelSnapshot
         if let level {
             mode = .editing(level)
@@ -286,8 +305,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             snapshot = EditorLevelSnapshot.blank()
         }
         workingLevel = snapshot
-        self.settings = settings
-        self.scene = LevelEditorScene(level: Self.makeLevel(from: snapshot), settings: settings)
+        self.settingsBinding = settings
+        self.scene = LevelEditorScene(level: Self.makeLevel(from: snapshot), settings: settings.wrappedValue)
         self.scene.editorDelegate = self
         scene.setPlaybackState(.playing)
         scene.timelineDidUpdate = { [weak self] seconds in
@@ -295,6 +314,9 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
                 self?.timelineSeconds = seconds
             }
         }
+        // Initialize grid after scene is set up
+        // Note: Grid will update again in didChangeSize when layoutTransform is available
+        scene.updateGrid(interval: settings.wrappedValue.editorSnapInterval.map { CGFloat($0) }, enabled: settings.wrappedValue.editorGridEnabled)
     }
     
     var headerTitle: String {
@@ -466,14 +488,20 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         applySnapshotToScene()
     }
     
-    func setSnapEnabled(_ enabled: Bool) {
-        options.snapEnabled = enabled
+    func setSnapInterval(_ value: CGFloat?) {
+        if let value = value {
+            snapInterval = max(0.01, min(0.5, value))
+        } else {
+            snapInterval = nil
+        }
+        scene.updateGrid(interval: snapInterval, enabled: isGridEnabled)
     }
-    
-    func setSnapInterval(_ value: CGFloat) {
-        options.snapInterval = max(0.01, min(0.5, value))
+
+    func setGridEnabled(_ enabled: Bool) {
+        isGridEnabled = enabled
+        scene.updateGrid(interval: snapInterval, enabled: isGridEnabled)
     }
-    
+
     func performReset() {
         pushUndoState()
         workingLevel = .blank()
@@ -517,12 +545,11 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     private func snapPoint(_ point: Level.NormalizedPoint) -> Level.NormalizedPoint {
         func snap(_ value: CGFloat) -> CGFloat {
             // Don't clamp - allow coordinates outside -1...1 when zoomed out
-            guard options.snapEnabled else { return value }
-            let interval = max(options.snapInterval, 0.01)
-            let snapped = (value / interval).rounded() * interval
+            guard let interval = snapInterval else { return value }
+            let clampedInterval = max(interval, 0.01)
+            let snapped = (value / clampedInterval).rounded() * clampedInterval
             return snapped
         }
-        AppLog.editor.debug("snapPoint input=(\(point.x), \(point.y)) snapEnabled=\(options.snapEnabled) output=(\(snap(point.x)), \(snap(point.y)))")
         return Level.NormalizedPoint(x: snap(point.x), y: snap(point.y))
     }
     
@@ -1195,5 +1222,9 @@ extension LevelEditorViewModel: LevelEditorSceneDelegate {
 
     func editorScene(_ scene: LevelEditorScene, didDragButton buttonID: String, to point: Level.NormalizedPoint) {
         updateButtonPosition(buttonID: buttonID, to: point)
+    }
+
+    func editorScene(_ scene: LevelEditorScene, snapPoint point: Level.NormalizedPoint) -> Level.NormalizedPoint {
+        return snapPoint(point)
     }
 }

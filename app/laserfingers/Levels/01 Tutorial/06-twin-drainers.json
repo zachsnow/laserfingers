@@ -2,7 +2,7 @@
   "id": "tutorial-drainers-01",
   "title": "Twin Drainers",
   "description": "Balance both pads while the sweepers collapse toward center.",
-  "backgroundImage": "../../Images/bg.jpg",
+  "backgroundImage": "../../Images/bg2.jpg",
   "maxTouches": 2,
   "lives": 1,
   "buttons": [

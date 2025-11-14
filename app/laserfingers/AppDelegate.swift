@@ -95,7 +95,11 @@ final class AppCoordinator: ObservableObject {
     func openLevelEditor(with level: Level?) {
         guard settings.advancedModeEnabled else { return }
         screenBeforeLevelEditor = screen
-        levelEditorViewModel = LevelEditorViewModel(level: level, settings: settings)
+        let settingsBinding = Binding<GameSettings>(
+            get: { [weak self] in self?.settings ?? GameSettings() },
+            set: { [weak self] newValue in self?.settings = newValue }
+        )
+        levelEditorViewModel = LevelEditorViewModel(level: level, settings: settingsBinding)
         screen = .levelEditor
     }
     
@@ -273,6 +277,7 @@ final class AppCoordinator: ObservableObject {
         guard !levels.isEmpty else { return }
         levelProgress = levels.map { LevelProgress(level: $0, state: .completed) }
         persistProgress()
+        screen = .levelSelect
     }
     
     private func persistProgress() {

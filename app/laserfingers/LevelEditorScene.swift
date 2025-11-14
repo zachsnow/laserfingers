@@ -6,6 +6,7 @@ protocol LevelEditorSceneDelegate: AnyObject {
     func editorScene(_ scene: LevelEditorScene, didSelectLaserID laserID: String)
     func editorScene(_ scene: LevelEditorScene, didDragPathPoint laserID: String, pointIndex: Int, to point: Level.NormalizedPoint)
     func editorScene(_ scene: LevelEditorScene, didDragButton buttonID: String, to point: Level.NormalizedPoint)
+    func editorScene(_ scene: LevelEditorScene, snapPoint point: Level.NormalizedPoint) -> Level.NormalizedPoint
 }
 
 final class LevelEditorScene: LevelSceneBase {
@@ -14,6 +15,7 @@ final class LevelEditorScene: LevelSceneBase {
     private var draggingHandle: PathPointHandleNode?
     private var dragStartPosition: CGPoint?
     private let cameraNode = SKCameraNode()
+    private var gridLayer: SKNode?
 
     var zoomScale: CGFloat = 1.0 {
         didSet {
@@ -39,6 +41,10 @@ final class LevelEditorScene: LevelSceneBase {
         super.didChangeSize(oldSize)
         cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
         AppLog.scene.notice("Scene size changed from (\(oldSize.width), \(oldSize.height)) to (\(size.width), \(size.height))")
+        // Redraw grid with updated layout transform
+        if let delegate = editorDelegate as? LevelEditorViewModel {
+            updateGrid(interval: delegate.snapInterval, enabled: delegate.isGridEnabled)
+        }
     }
 
     private func updateCamera() {
@@ -106,7 +112,14 @@ final class LevelEditorScene: LevelSceneBase {
 
         // Update handle position during drag
         if let handle = draggingHandle {
-            handle.position = location
+            // Apply snapping during drag for visual feedback
+            if let transform = layoutTransform, let normalized = transform.normalizedPoint(from: location, zoomScale: zoomScale) {
+                let snapped = editorDelegate?.editorScene(self, snapPoint: normalized) ?? normalized
+                let snappedScreen = transform.point(from: snapped)
+                handle.position = snappedScreen
+            } else {
+                handle.position = location
+            }
             // Update connected lines in real-time
             updateLinesForHandle(handle)
         }
@@ -336,5 +349,74 @@ final class LevelEditorScene: LevelSceneBase {
             }
         }
         return lineIndex
+    }
+
+    func updateGrid(interval: CGFloat?, enabled: Bool) {
+        AppLog.editor.notice("updateGrid called: interval=\(interval?.description ?? "nil") enabled=\(enabled) layoutTransform=\(layoutTransform != nil)")
+        gridLayer?.removeFromParent()
+        gridLayer = nil
+
+        guard enabled, let interval = interval, let transform = layoutTransform else {
+            AppLog.editor.notice("updateGrid early return: enabled=\(enabled) interval=\(interval?.description ?? "nil") transform=\(layoutTransform != nil)")
+            return
+        }
+
+        let grid = SKNode()
+        grid.zPosition = -100
+
+        let gridColor = SKColor(white: 0.8, alpha: 0.3)
+
+        // Calculate grid range based on normalized coordinates
+        let minCoord: CGFloat = -2.0
+        let maxCoord: CGFloat = 2.0
+
+        // Vertical lines
+        var x = (minCoord / interval).rounded() * interval
+        var lineCount = 0
+        while x <= maxCoord {
+            let topPoint = transform.point(from: Level.NormalizedPoint(x: x, y: maxCoord))
+            let bottomPoint = transform.point(from: Level.NormalizedPoint(x: x, y: minCoord))
+            if lineCount == 0 {
+                AppLog.editor.notice("First vertical line: x=\(x) from (\(bottomPoint.x), \(bottomPoint.y)) to (\(topPoint.x), \(topPoint.y))")
+            }
+            lineCount += 1
+
+            let line = SKShapeNode()
+            let path = CGMutablePath()
+            path.move(to: bottomPoint)
+            path.addLine(to: topPoint)
+            line.path = path
+            line.strokeColor = gridColor
+            line.lineWidth = 1
+            line.isAntialiased = true
+            line.lineCap = .round
+            grid.addChild(line)
+
+            x += interval
+        }
+
+        // Horizontal lines
+        var y = (minCoord / interval).rounded() * interval
+        while y <= maxCoord {
+            let leftPoint = transform.point(from: Level.NormalizedPoint(x: minCoord, y: y))
+            let rightPoint = transform.point(from: Level.NormalizedPoint(x: maxCoord, y: y))
+
+            let line = SKShapeNode()
+            let path = CGMutablePath()
+            path.move(to: leftPoint)
+            path.addLine(to: rightPoint)
+            line.path = path
+            line.strokeColor = gridColor
+            line.lineWidth = 1
+            line.isAntialiased = true
+            line.lineCap = .round
+            grid.addChild(line)
+
+            y += interval
+        }
+
+        addChild(grid)
+        gridLayer = grid
+        AppLog.editor.notice("Grid added with \(grid.children.count) lines at z=\(grid.zPosition)")
     }
 }

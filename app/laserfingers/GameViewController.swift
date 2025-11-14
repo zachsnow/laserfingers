@@ -276,22 +276,13 @@ struct AdvancedMenuView: View {
                         coordinator.resetProgress()
                     }
                     Spacer()
+                    LaserButton(title: "Back", style: .secondary) {
+                        coordinator.goToMainMenu()
+                    }
                 }
                 .padding(menuContentPadding)
             }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        coordinator.goToMainMenu()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
-                        }
-                        .foregroundColor(.pink)
-                    }
-                }
-            }
+            .navigationBarBackButtonHidden(true)
         }
     }
 }
@@ -569,7 +560,14 @@ struct GameplayView: View {
                     GameHUDView(session: session)
                         .allowsHitTesting(false)
                     Spacer()
-                    if coordinator.settings.advancedModeEnabled {
+                    PauseButton(isEnabled: session.status == .running) {
+                        coordinator.pauseGame()
+                    }
+                }
+                .padding()
+                Spacer()
+                if coordinator.settings.advancedModeEnabled {
+                    HStack {
                         Button {
                             showVisualSettings = true
                         } label: {
@@ -580,14 +578,11 @@ struct GameplayView: View {
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .padding(.trailing, 6)
+                        .padding(.leading)
+                        Spacer()
                     }
-                    PauseButton(isEnabled: session.status == .running) {
-                        coordinator.pauseGame()
-                    }
+                    .padding(.bottom)
                 }
-                .padding()
-                Spacer()
             }
             overlayView
         }

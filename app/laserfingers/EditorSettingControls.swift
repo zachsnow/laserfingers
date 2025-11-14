@@ -80,7 +80,7 @@ struct EditorNumberFieldRow: View {
     var body: some View {
         EditorSettingRow(title: title) {
             TextField(placeholder, value: $value, format: format)
-                .keyboardType(.decimalPad)
+                .keyboardType(.numbersAndPunctuation)
                 .multilineTextAlignment(.trailing)
                 .frame(maxWidth: 160)
         }
@@ -175,7 +175,7 @@ struct EditorNullableNumberRow: View {
     var body: some View {
         EditorNullableValueRow(title: title, value: $value, defaultValue: defaultValue) { binding in
             TextField("", value: binding, format: format)
-                .keyboardType(.decimalPad)
+                .keyboardType(.numbersAndPunctuation)
                 .multilineTextAlignment(.trailing)
                 .frame(maxWidth: 140)
         }

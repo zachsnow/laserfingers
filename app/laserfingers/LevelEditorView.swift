@@ -333,17 +333,17 @@ private struct EditorOptionsSheet: View {
         NavigationStack {
             Form {
                 Section("Snapping") {
-                    EditorNumberFieldRow(
-                        title: "Interval",
-                        placeholder: "0.10",
+                    EditorNullableNumberRow(
+                        title: "Snap Interval",
                         value: snapIntervalBinding,
+                        defaultValue: 0.2,
                         format: .number.precision(.fractionLength(2))
                     )
                     EditorToggleRow(
-                        title: "Snap Enabled",
+                        title: "Show Grid",
                         isOn: Binding(
-                            get: { viewModel.options.snapEnabled },
-                            set: { viewModel.setSnapEnabled($0) }
+                            get: { viewModel.isGridEnabled },
+                            set: { viewModel.setGridEnabled($0) }
                         )
                     )
                 }
@@ -357,16 +357,25 @@ private struct EditorOptionsSheet: View {
         }
     }
     
-    private var snapIntervalBinding: Binding<Double> {
+    private var snapIntervalBinding: Binding<Double?> {
         Binding(
-            get: { Double(viewModel.options.snapInterval) },
+            get: {
+                if let interval = viewModel.snapInterval {
+                    return Double(interval)
+                }
+                return nil
+            },
             set: { newValue in
-                let clamped = Self.clampInterval(newValue)
-                viewModel.setSnapInterval(CGFloat(clamped))
+                if let newValue = newValue {
+                    let clamped = Self.clampInterval(newValue)
+                    viewModel.setSnapInterval(CGFloat(clamped))
+                } else {
+                    viewModel.setSnapInterval(nil)
+                }
             }
         )
     }
-    
+
     private static func clampInterval(_ value: Double) -> Double {
         min(0.5, max(0.01, value))
     }
