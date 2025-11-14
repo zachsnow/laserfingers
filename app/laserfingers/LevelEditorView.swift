@@ -553,6 +553,20 @@ private struct ObjectSettingsSheet: View {
                     format: .number.precision(.fractionLength(2))
                 )
             }
+            Section("Animation") {
+                // Animation controls
+                if let button = viewModel.workingLevel.buttons.first(where: { $0.id == state.buttonID.wrappedValue }) {
+                    if button.endpoint.points.count == 1 {
+                        Button("Add Animation Point") {
+                            viewModel.addButtonAnimationPoint(buttonID: state.buttonID.wrappedValue)
+                        }
+                    } else if button.endpoint.points.count > 1 {
+                        Button("Remove Animation", role: .destructive) {
+                            viewModel.removeButtonAnimationPoint(buttonID: state.buttonID.wrappedValue)
+                        }
+                    }
+                }
+            }
             Section("Hit Areas") {
                 let areas = viewModel.hitAreas(for: state.buttonID.wrappedValue)
                 if areas.isEmpty {

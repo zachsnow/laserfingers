@@ -8,10 +8,6 @@
   "buttons": [
     {
       "id": "west-lock",
-      "position": {
-        "x": -1.0,
-        "y": 0.0
-      },
       "timing": {
         "chargeSeconds": 1.5,
         "holdSeconds": null,
@@ -37,14 +33,20 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": -1.0,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     },
     {
       "id": "east-lock",
-      "position": {
-        "x": 1.0,
-        "y": 0.0
-      },
       "timing": {
         "chargeSeconds": 1.5,
         "holdSeconds": null,
@@ -70,7 +72,17 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": 1.0,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     }
   ],
   "lasers": [

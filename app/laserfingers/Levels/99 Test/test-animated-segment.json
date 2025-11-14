@@ -7,10 +7,6 @@
   "buttons": [
     {
       "id": "test-button",
-      "position": {
-        "x": 0.0,
-        "y": -0.6
-      },
       "timing": {
         "chargeSeconds": 2.0,
         "holdSeconds": null,
@@ -36,7 +32,17 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": 0.0,
+            "y": -0.6
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     }
   ],
   "lasers": [

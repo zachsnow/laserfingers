@@ -6,10 +6,6 @@
   "buttons": [
     {
       "id": "center-lock",
-      "position": {
-        "x": 0.0,
-        "y": 0.0
-      },
       "timing": {
         "chargeSeconds": 1.6,
         "holdSeconds": 0.2,
@@ -35,7 +31,17 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": 0.0,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     }
   ],
   "lasers": [

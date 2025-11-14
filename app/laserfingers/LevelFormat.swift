@@ -75,8 +75,8 @@ struct Level: Identifiable, Codable, Hashable {
         }
         
         let id: String
-        /// Anchor used for positioning hit areas.
-        let position: NormalizedPoint
+        /// Animation path for button position. Single point = stationary, multiple points = animated.
+        let endpoint: EndpointPath
         let timing: Timing
         let hitLogic: HitLogic
         let required: Bool
@@ -136,6 +136,14 @@ struct Level: Identifiable, Codable, Hashable {
 
         var isStationary: Bool {
             return points.count == 1
+        }
+
+        /// Returns a new EndpointPath with the point at the given index updated
+        func updatingPoint(at index: Int, to newPoint: NormalizedPoint) -> EndpointPath {
+            guard index >= 0 && index < points.count else { return self }
+            var updatedPoints = points
+            updatedPoints[index] = newPoint
+            return EndpointPath(points: updatedPoints, cycleSeconds: cycleSeconds, t: t)
         }
     }
 
@@ -480,7 +488,7 @@ extension Level {
 extension Level.Button {
     private enum CodingKeys: String, CodingKey {
         case id
-        case position
+        case endpoint
         case timing
         case hitLogic
         case required
@@ -488,11 +496,11 @@ extension Level.Button {
         case hitAreas
         case effects
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
-        position = try container.decode(Level.NormalizedPoint.self, forKey: .position)
+        endpoint = try container.decode(Level.EndpointPath.self, forKey: .endpoint)
         timing = try container.decode(Level.Button.Timing.self, forKey: .timing)
         hitLogic = try container.decode(Level.Button.HitLogic.self, forKey: .hitLogic)
         required = try container.decode(Bool.self, forKey: .required)
@@ -500,11 +508,11 @@ extension Level.Button {
         hitAreas = try container.decode([Level.Button.HitArea].self, forKey: .hitAreas)
         effects = try container.decodeIfPresent([Level.Button.Effect].self, forKey: .effects) ?? []
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(position, forKey: .position)
+        try container.encode(endpoint, forKey: .endpoint)
         try container.encode(timing, forKey: .timing)
         try container.encode(hitLogic, forKey: .hitLogic)
         try container.encode(required, forKey: .required)

@@ -6,10 +6,6 @@
   "buttons": [
     {
       "id": "core-switch",
-      "position": {
-        "x": 0.0,
-        "y": 0.0
-      },
       "timing": {
         "chargeSeconds": 1.7,
         "holdSeconds": 0.15,
@@ -35,7 +31,17 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": 0.0,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     }
   ],
   "lasers": [

@@ -7,10 +7,6 @@
   "buttons": [
     {
       "id": "barrier-switch",
-      "position": {
-        "x": 0.0,
-        "y": -0.5
-      },
       "timing": {
         "chargeSeconds": 0.0,
         "holdSeconds": 0.0,
@@ -55,14 +51,20 @@
             ]
           }
         }
-      ]
+      ],
+      "endpoint": {
+        "points": [
+          {
+            "x": 0.0,
+            "y": -0.5
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     },
     {
       "id": "upper-gate",
-      "position": {
-        "x": 0.0,
-        "y": 0.5
-      },
       "timing": {
         "chargeSeconds": 1.5,
         "holdSeconds": 0.3,
@@ -88,7 +90,17 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": 0.0,
+            "y": 0.5
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     }
   ],
   "lasers": [

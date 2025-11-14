@@ -8,10 +8,6 @@
   "buttons": [
     {
       "id": "west-drainer",
-      "position": {
-        "x": -0.5,
-        "y": 0.0
-      },
       "timing": {
         "chargeSeconds": 1.6,
         "holdSeconds": 0,
@@ -37,14 +33,20 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": -0.5,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     },
     {
       "id": "east-drainer",
-      "position": {
-        "x": 0.5,
-        "y": 0.0
-      },
       "timing": {
         "chargeSeconds": 1.6,
         "holdSeconds": 0,
@@ -70,7 +72,17 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": 0.5,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     }
   ],
   "lasers": [

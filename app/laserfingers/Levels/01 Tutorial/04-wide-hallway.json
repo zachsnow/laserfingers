@@ -7,10 +7,6 @@
   "buttons": [
     {
       "id": "hallway-button",
-      "position": {
-        "x": 0.0,
-        "y": 0.0
-      },
       "timing": {
         "chargeSeconds": 1.6,
         "holdSeconds": 0,
@@ -47,7 +43,17 @@
           }
         }
       ],
-      "effects": []
+      "effects": [],
+      "endpoint": {
+        "points": [
+          {
+            "x": 0.0,
+            "y": 0.0
+          }
+        ],
+        "cycleSeconds": null,
+        "t": 0
+      }
     }
   ],
   "lasers": [

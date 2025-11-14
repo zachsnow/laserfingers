@@ -1,11 +1,17 @@
 import SpriteKit
 
+enum PathPointOwner {
+    case rayLaser(id: String)
+    case segmentLaserStart(id: String)
+    case segmentLaserEnd(id: String)
+    case button(id: String)
+}
+
 protocol LevelEditorSceneDelegate: AnyObject {
     func editorScene(_ scene: LevelEditorScene, didTapNormalized point: Level.NormalizedPoint)
     func editorScene(_ scene: LevelEditorScene, didSelectButtonID buttonID: String, hitAreaID: String?)
     func editorScene(_ scene: LevelEditorScene, didSelectLaserID laserID: String)
-    func editorScene(_ scene: LevelEditorScene, didDragPathPoint laserID: String, pointIndex: Int, to point: Level.NormalizedPoint)
-    func editorScene(_ scene: LevelEditorScene, didDragButton buttonID: String, to point: Level.NormalizedPoint)
+    func editorScene(_ scene: LevelEditorScene, didDragPathPoint owner: PathPointOwner, pointIndex: Int, to point: Level.NormalizedPoint)
     func editorScene(_ scene: LevelEditorScene, snapPoint point: Level.NormalizedPoint) -> Level.NormalizedPoint
 }
 
@@ -171,10 +177,10 @@ final class LevelEditorScene: LevelSceneBase {
 
             AppLog.touch.notice("Handle dragged distance=\(dragDistance) to normalized=(\(normalized.x), \(normalized.y))")
             // Notify delegate of the drag
-            if let laserID = handle.laserID, let pointIndex = handle.pointIndex {
-                editorDelegate?.editorScene(self, didDragPathPoint: laserID, pointIndex: pointIndex, to: normalized)
-            } else if let buttonID = handle.buttonID {
-                editorDelegate?.editorScene(self, didDragButton: buttonID, to: normalized)
+            if let owner = pathPointOwner(for: handle), let pointIndex = handle.pointIndex {
+                // For segment laser end points, convert negative index to positive
+                let actualIndex = pointIndex < 0 ? -(pointIndex + 1) : pointIndex
+                editorDelegate?.editorScene(self, didDragPathPoint: owner, pointIndex: actualIndex, to: normalized)
             }
 
             draggingHandle = nil
@@ -219,10 +225,14 @@ final class LevelEditorScene: LevelSceneBase {
     }
 
     private func updateLinesForHandle(_ handle: PathPointHandleNode) {
-        guard let laserID = handle.laserID, let pointIndex = handle.pointIndex else { return }
+        // Handle button endpoint lines
+        if let buttonID = handle.buttonID, let pointIndex = handle.pointIndex {
+            updateLinesForButtonHandle(handle, buttonID: buttonID, pointIndex: pointIndex)
+            return
+        }
 
-        // Find which lines connect to this handle
-        // We need to update lines that connect this point to adjacent points
+        // Handle laser endpoint lines
+        guard let laserID = handle.laserID, let pointIndex = handle.pointIndex else { return }
         guard let laser = level.lasers.first(where: { $0.id == laserID }) else { return }
 
         // Calculate which lines need updating based on the laser type and point index
@@ -291,6 +301,77 @@ final class LevelEditorScene: LevelSceneBase {
         }
     }
 
+    private func updateLinesForButtonHandle(_ handle: PathPointHandleNode, buttonID: String, pointIndex: Int) {
+        guard let button = level.buttons.first(where: { $0.id == buttonID }) else { return }
+        guard let transform = layoutTransform else { return }
+
+        let pointCount = button.endpoint.points.count
+        guard pointCount > 1 else { return }
+
+        // Calculate the line index offset (all laser lines come first)
+        var lineIndex = 0
+        for laser in level.lasers {
+            if let rayLaser = laser as? Level.RayLaser, rayLaser.endpoint.points.count > 1 {
+                lineIndex += rayLaser.endpoint.points.count - 1
+            } else if let segmentLaser = laser as? Level.SegmentLaser {
+                if segmentLaser.startEndpoint.points.count > 1 {
+                    lineIndex += segmentLaser.startEndpoint.points.count - 1
+                }
+                if segmentLaser.endEndpoint.points.count > 1 {
+                    lineIndex += segmentLaser.endEndpoint.points.count - 1
+                }
+            }
+        }
+
+        // Add offset for buttons before this one
+        for otherButton in level.buttons {
+            if otherButton.id == buttonID {
+                break
+            }
+            if otherButton.endpoint.points.count > 1 {
+                lineIndex += otherButton.endpoint.points.count - 1
+            }
+        }
+
+        // Update lines connected to this point
+        let points = button.endpoint.points
+        var lineIndicesToUpdate: [Int] = []
+
+        // Line before this point (if exists)
+        if pointIndex > 0 {
+            lineIndicesToUpdate.append(lineIndex + pointIndex - 1)
+        }
+        // Line after this point (if exists)
+        if pointIndex < pointCount - 1 {
+            lineIndicesToUpdate.append(lineIndex + pointIndex)
+        }
+
+        // Update the lines
+        for index in lineIndicesToUpdate {
+            guard index < pathPointLines.count else { continue }
+            let line = pathPointLines[index]
+
+            // Determine which points this line connects
+            if pointIndex > 0 && index == lineIndex + pointIndex - 1 {
+                // Line from previous point to this point
+                let start = transform.point(from: points[pointIndex - 1])
+                let end = handle.position
+                let path = CGMutablePath()
+                path.move(to: start)
+                path.addLine(to: end)
+                line.path = path
+            } else if pointIndex < pointCount - 1 && index == lineIndex + pointIndex {
+                // Line from this point to next point
+                let start = handle.position
+                let end = transform.point(from: points[pointIndex + 1])
+                let path = CGMutablePath()
+                path.move(to: start)
+                path.addLine(to: end)
+                line.path = path
+            }
+        }
+    }
+
     private func updateLineAtIndex(_ index: Int, forHandle handle: PathPointHandleNode) {
         guard let laserID = handle.laserID, let pointIndex = handle.pointIndex else { return }
         guard let laser = level.lasers.first(where: { $0.id == laserID }) else { return }
@@ -349,6 +430,22 @@ final class LevelEditorScene: LevelSceneBase {
             }
         }
         return lineIndex
+    }
+
+    private func pathPointOwner(for handle: PathPointHandleNode) -> PathPointOwner? {
+        if let buttonID = handle.buttonID {
+            return .button(id: buttonID)
+        } else if let laserID = handle.laserID, let pointIndex = handle.pointIndex {
+            guard let laser = level.lasers.first(where: { $0.id == laserID }) else { return nil }
+
+            if laser is Level.RayLaser {
+                return .rayLaser(id: laserID)
+            } else if laser is Level.SegmentLaser {
+                // Negative index indicates end endpoint
+                return pointIndex < 0 ? .segmentLaserEnd(id: laserID) : .segmentLaserStart(id: laserID)
+            }
+        }
+        return nil
     }
 
     func updateGrid(interval: CGFloat?, enabled: Bool) {

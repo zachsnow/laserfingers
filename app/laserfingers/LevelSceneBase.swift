@@ -104,6 +104,10 @@ class LevelSceneBase: SKScene {
             if let runtime = oldButtonMap[button.id], runtime.spec == button {
                 updatedButtons.append(runtime)
             } else {
+                // Remove old button node if it exists
+                if let oldRuntime = oldButtonMap[button.id] {
+                    oldRuntime.node.removeFromParent()
+                }
                 let node = ButtonNode(button: button, transform: transform)
                 node.zPosition = 5
                 addChild(node)
@@ -396,98 +400,54 @@ class LevelSceneBase: SKScene {
         // Create handles for laser path points at their defined positions (not animated positions)
         for laser in level.lasers {
             if let rayLaser = laser as? Level.RayLaser {
-                // Add handles for each raw endpoint point
-                let points = rayLaser.endpoint.points
-                for (index, point) in points.enumerated() {
-                    let handle = PathPointHandleNode(
-                        type: .endpoint,
-                        laserID: laser.id,
-                        pointIndex: index,
-                        buttonID: nil
-                    )
-                    handle.position = transform.point(from: point)
-                    handle.isHidden = !showPathPointHandles
-                    addChild(handle)
-                    pathPointHandles.append(handle)
-                }
-
-                // Draw lines between consecutive points
-                if points.count > 1 {
-                    for i in 0..<(points.count - 1) {
-                        let start = transform.point(from: points[i])
-                        let end = transform.point(from: points[i + 1])
-                        let line = createPathLine(from: start, to: end)
-                        addChild(line)
-                        pathPointLines.append(line)
-                    }
-                }
+                addPathHandlesAndLines(for: rayLaser.endpoint, type: .endpoint, laserID: laser.id, pointIndexOffset: 0, buttonID: nil, transform: transform)
             } else if let segmentLaser = laser as? Level.SegmentLaser {
-                // Add handles for start endpoint points
-                let startPoints = segmentLaser.startEndpoint.points
-                for (index, point) in startPoints.enumerated() {
-                    let handle = PathPointHandleNode(
-                        type: .endpoint,
-                        laserID: laser.id,
-                        pointIndex: index,
-                        buttonID: nil
-                    )
-                    handle.position = transform.point(from: point)
-                    handle.isHidden = !showPathPointHandles
-                    addChild(handle)
-                    pathPointHandles.append(handle)
-                }
-
-                // Draw lines between consecutive start points
-                if startPoints.count > 1 {
-                    for i in 0..<(startPoints.count - 1) {
-                        let start = transform.point(from: startPoints[i])
-                        let end = transform.point(from: startPoints[i + 1])
-                        let line = createPathLine(from: start, to: end)
-                        addChild(line)
-                        pathPointLines.append(line)
-                    }
-                }
-
-                // Add handles for end endpoint points
-                let endPoints = segmentLaser.endEndpoint.points
-                for (index, point) in endPoints.enumerated() {
-                    let handle = PathPointHandleNode(
-                        type: .endpoint,
-                        laserID: laser.id,
-                        pointIndex: -(index + 1), // Negative index to indicate end endpoint
-                        buttonID: nil
-                    )
-                    handle.position = transform.point(from: point)
-                    handle.isHidden = !showPathPointHandles
-                    addChild(handle)
-                    pathPointHandles.append(handle)
-                }
-
-                // Draw lines between consecutive end points
-                if endPoints.count > 1 {
-                    for i in 0..<(endPoints.count - 1) {
-                        let start = transform.point(from: endPoints[i])
-                        let end = transform.point(from: endPoints[i + 1])
-                        let line = createPathLine(from: start, to: end)
-                        addChild(line)
-                        pathPointLines.append(line)
-                    }
-                }
+                addPathHandlesAndLines(for: segmentLaser.startEndpoint, type: .endpoint, laserID: laser.id, pointIndexOffset: 0, buttonID: nil, transform: transform)
+                addPathHandlesAndLines(for: segmentLaser.endEndpoint, type: .endpoint, laserID: laser.id, pointIndexOffset: -1, buttonID: nil, transform: transform)
             }
         }
 
-        // Create handles for button anchor points
+        // Create handles for button endpoint points
         for button in level.buttons {
+            addPathHandlesAndLines(for: button.endpoint, type: .buttonAnchor, laserID: nil, pointIndexOffset: 0, buttonID: button.id, transform: transform)
+        }
+    }
+
+    /// Helper to add path point handles and connecting lines for an EndpointPath
+    private func addPathHandlesAndLines(
+        for endpoint: Level.EndpointPath,
+        type: PathPointHandleNode.HandleType,
+        laserID: String?,
+        pointIndexOffset: Int,
+        buttonID: String?,
+        transform: NormalizedLayoutTransform
+    ) {
+        let points = endpoint.points
+
+        // Add handles for each point
+        for (index, point) in points.enumerated() {
+            let actualIndex = pointIndexOffset < 0 ? -(index + 1) : (index + pointIndexOffset)
             let handle = PathPointHandleNode(
-                type: .buttonAnchor,
-                laserID: nil,
-                pointIndex: nil,
-                buttonID: button.id
+                type: type,
+                laserID: laserID,
+                pointIndex: actualIndex,
+                buttonID: buttonID
             )
-            handle.position = transform.point(from: button.position)
+            handle.position = transform.point(from: point)
             handle.isHidden = !showPathPointHandles
             addChild(handle)
             pathPointHandles.append(handle)
+        }
+
+        // Draw lines between consecutive points
+        if points.count > 1 {
+            for i in 0..<(points.count - 1) {
+                let start = transform.point(from: points[i])
+                let end = transform.point(from: points[i + 1])
+                let line = createPathLine(from: start, to: end)
+                addChild(line)
+                pathPointLines.append(line)
+            }
         }
     }
 
@@ -514,79 +474,48 @@ class LevelSceneBase: SKScene {
         // Update laser path point handles to their raw defined positions
         for laser in level.lasers {
             if let rayLaser = laser as? Level.RayLaser {
-                let points = rayLaser.endpoint.points
-                for point in points {
-                    if handleIndex < pathPointHandles.count {
-                        pathPointHandles[handleIndex].position = transform.point(from: point)
-                        handleIndex += 1
-                    }
-                }
-                // Update lines between consecutive points
-                if points.count > 1 {
-                    for i in 0..<(points.count - 1) {
-                        if lineIndex < pathPointLines.count {
-                            let start = transform.point(from: points[i])
-                            let end = transform.point(from: points[i + 1])
-                            let path = CGMutablePath()
-                            path.move(to: start)
-                            path.addLine(to: end)
-                            pathPointLines[lineIndex].path = path
-                            lineIndex += 1
-                        }
-                    }
-                }
+                updatePathHandlesAndLinesPositions(for: rayLaser.endpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
             } else if let segmentLaser = laser as? Level.SegmentLaser {
-                let startPoints = segmentLaser.startEndpoint.points
-                for point in startPoints {
-                    if handleIndex < pathPointHandles.count {
-                        pathPointHandles[handleIndex].position = transform.point(from: point)
-                        handleIndex += 1
-                    }
-                }
-                // Update lines between consecutive start points
-                if startPoints.count > 1 {
-                    for i in 0..<(startPoints.count - 1) {
-                        if lineIndex < pathPointLines.count {
-                            let start = transform.point(from: startPoints[i])
-                            let end = transform.point(from: startPoints[i + 1])
-                            let path = CGMutablePath()
-                            path.move(to: start)
-                            path.addLine(to: end)
-                            pathPointLines[lineIndex].path = path
-                            lineIndex += 1
-                        }
-                    }
-                }
-
-                let endPoints = segmentLaser.endEndpoint.points
-                for point in endPoints {
-                    if handleIndex < pathPointHandles.count {
-                        pathPointHandles[handleIndex].position = transform.point(from: point)
-                        handleIndex += 1
-                    }
-                }
-                // Update lines between consecutive end points
-                if endPoints.count > 1 {
-                    for i in 0..<(endPoints.count - 1) {
-                        if lineIndex < pathPointLines.count {
-                            let start = transform.point(from: endPoints[i])
-                            let end = transform.point(from: endPoints[i + 1])
-                            let path = CGMutablePath()
-                            path.move(to: start)
-                            path.addLine(to: end)
-                            pathPointLines[lineIndex].path = path
-                            lineIndex += 1
-                        }
-                    }
-                }
+                updatePathHandlesAndLinesPositions(for: segmentLaser.startEndpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
+                updatePathHandlesAndLinesPositions(for: segmentLaser.endEndpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
             }
         }
 
-        // Update button anchor handles
+        // Update button endpoint handles
         for button in level.buttons {
+            updatePathHandlesAndLinesPositions(for: button.endpoint, handleIndex: &handleIndex, lineIndex: &lineIndex, transform: transform)
+        }
+    }
+
+    /// Helper to update positions of path point handles and lines for an EndpointPath
+    private func updatePathHandlesAndLinesPositions(
+        for endpoint: Level.EndpointPath,
+        handleIndex: inout Int,
+        lineIndex: inout Int,
+        transform: NormalizedLayoutTransform
+    ) {
+        let points = endpoint.points
+
+        // Update handle positions
+        for point in points {
             if handleIndex < pathPointHandles.count {
-                pathPointHandles[handleIndex].position = transform.point(from: button.position)
+                pathPointHandles[handleIndex].position = transform.point(from: point)
                 handleIndex += 1
+            }
+        }
+
+        // Update lines between consecutive points
+        if points.count > 1 {
+            for i in 0..<(points.count - 1) {
+                if lineIndex < pathPointLines.count {
+                    let start = transform.point(from: points[i])
+                    let end = transform.point(from: points[i + 1])
+                    let path = CGMutablePath()
+                    path.move(to: start)
+                    path.addLine(to: end)
+                    pathPointLines[lineIndex].path = path
+                    lineIndex += 1
+                }
             }
         }
     }
@@ -680,6 +609,12 @@ class LevelSceneBase: SKScene {
         }
         for index in buttonStates.indices {
             var runtime = buttonStates[index]
+
+            // Update button position for animation
+            if let transform = layoutTransform {
+                runtime.node.updatePosition(at: timelineSeconds, transform: transform)
+            }
+
             let areaCounts = runtime.node.touchCounts(for: touchPoints, in: self)
             let totalTouches = areaCounts.reduce(0, +)
             let wasTouching = runtime.isTouching
@@ -869,7 +804,7 @@ final class ButtonNode: SKNode {
     }
     
     func updateLayout(transform: NormalizedLayoutTransform) {
-        position = transform.point(from: button.position)
+        position = transform.point(from: button.endpoint.points.first ?? Level.NormalizedPoint(x: 0, y: 0))
         lightNode.position = .zero
         for index in areas.indices {
             var visual = areas[index]
@@ -890,6 +825,12 @@ final class ButtonNode: SKNode {
             }
             areas[index] = visual
         }
+    }
+
+    func updatePosition(at time: TimeInterval, transform: NormalizedLayoutTransform) {
+        // Evaluate button endpoint position at current time
+        let pos = button.endpoint.position(at: time + button.endpoint.t, transform: transform)
+        position = pos
     }
     
     func updateChargeDisplay(_ progress: CGFloat) {
