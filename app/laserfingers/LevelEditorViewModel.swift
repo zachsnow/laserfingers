@@ -181,10 +181,8 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     @Published private(set) var redoStack: [EditorLevelSnapshot] = []
 
     var isDownloadedLevel: Bool {
-        // Check if the level ID contains the UUID pattern (8 hex chars)
-        // which indicates it's a saved level from the Downloaded pack
-        let idComponents = workingLevel.id.split(separator: "-")
-        return idComponents.count > 1 && idComponents.last?.count == 8
+        // Check if the level has a UUID, which indicates it's from the Downloaded pack
+        return workingLevel.uuid != nil
     }
     @Published var pendingFileAction: FileMenuItem?
     @Published var isExitConfirmationPresented = false
@@ -387,6 +385,12 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
 
     private func saveLevel(asNew: Bool) {
         do {
+            // If saving as new, generate a new UUID
+            if asNew {
+                pushUndoState()
+                workingLevel.uuid = UUID()
+            }
+
             let level = Self.makeLevel(from: workingLevel)
             let savedID = try LevelRepository.saveLevel(level, asNew: asNew)
             print("Level saved successfully to Downloaded pack with ID: \(savedID)")
@@ -481,7 +485,9 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
             addButton(at: snapped, shape: .circle(radius: 0.16))
         case .square:
             addButton(at: snapped, shape: .rectangle(width: 0.28, height: 0.28, cornerRadius: 0.02))
-        case .sweeper, .segment, .rotor:
+        case .rotor:
+            addRotor(center: snapped)
+        case .sweeper, .segment:
             handleTwoPointTap(for: currentTool, point: snapped)
         }
     }
@@ -493,8 +499,6 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
                 addSweeper(from: pending.start, to: point)
             case .segment:
                 addSegment(from: pending.start, to: point)
-            case .rotor:
-                addRotor(center: pending.start, reference: point)
             default:
                 break
             }
@@ -647,12 +651,32 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         applySnapshotToScene()
     }
     
+    private func nextLaserID() -> String {
+        let count = workingLevel.lasers.count + 1
+        var id = "laser-\(count)"
+        while workingLevel.lasers.contains(where: { $0.id == id }) {
+            let nextCount = count + workingLevel.lasers.count
+            id = "laser-\(nextCount)"
+        }
+        return id
+    }
+
+    private func nextButtonID() -> String {
+        let count = workingLevel.buttons.count + 1
+        var id = "button-\(count)"
+        while workingLevel.buttons.contains(where: { $0.id == id }) {
+            let nextCount = count + workingLevel.buttons.count
+            id = "button-\(nextCount)"
+        }
+        return id
+    }
+
     private func addSweeper(from start: Level.NormalizedPoint, to end: Level.NormalizedPoint) {
         guard !pointsAreTooClose(start, end) else { return }
         // Sweeper -> Ray with moving endpoint (angle defaults to perpendicular)
         let endpointPath = Level.EndpointPath(points: [start, end], cycleSeconds: 7.0, t: 0)
         let laser = Level.RayLaser(
-            id: UUID().uuidString,
+            id: nextLaserID(),
             color: "FFB703",
             thickness: 0.018,
             cadence: nil,
@@ -663,14 +687,14 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         )
         appendLaser(laser)
     }
-    
+
     private func addSegment(from start: Level.NormalizedPoint, to end: Level.NormalizedPoint) {
         guard !pointsAreTooClose(start, end) else { return }
         // Segment -> Segment with stationary endpoints
         let startPath = Level.EndpointPath(points: [start])
         let endPath = Level.EndpointPath(points: [end])
         let laser = Level.SegmentLaser(
-            id: UUID().uuidString,
+            id: nextLaserID(),
             color: "8ECAE6",
             thickness: 0.015,
             cadence: nil,
@@ -680,13 +704,12 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         )
         appendLaser(laser)
     }
-    
-    private func addRotor(center: Level.NormalizedPoint, reference: Level.NormalizedPoint) {
-        guard !pointsAreTooClose(center, reference) else { return }
+
+    private func addRotor(center: Level.NormalizedPoint) {
         // Rotor -> Ray with stationary endpoint (angle defaults to 0)
         let endpointPath = Level.EndpointPath(points: [center])
         let laser = Level.RayLaser(
-            id: UUID().uuidString,
+            id: nextLaserID(),
             color: "F72585",
             thickness: 0.012,
             cadence: nil,
@@ -730,7 +753,7 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
     }
     
     private func makeDefaultButton(at point: Level.NormalizedPoint, shape: Level.Button.HitArea.Shape) -> Level.Button {
-        let buttonID = UUID().uuidString
+        let buttonID = nextButtonID()
         let areaID = "\(buttonID)-area"
         let timing = Level.Button.Timing(chargeSeconds: 1.5, holdSeconds: 0.8, drainSeconds: 1.2)
         let color = Level.Button.ColorSpec(fill: "FF4D6D", glow: "FF87AB", rim: "FFFFFF")
@@ -1037,6 +1060,69 @@ final class LevelEditorViewModel: ObservableObject, Identifiable {
         )
 
         workingLevel.buttons[buttonIndex] = updatedButton
+        redoStack.removeAll()
+        applySnapshotToScene()
+    }
+
+    func addRotorAnimationPoint(laserID: String) {
+        guard let laserIndex = workingLevel.lasers.firstIndex(where: { $0.id == laserID }),
+              let rayLaser = workingLevel.lasers[laserIndex] as? Level.RayLaser,
+              rayLaser.endpoint.points.count == 1 else { return }
+
+        pushUndoState()
+
+        // Add a second point offset from the first
+        let firstPoint = rayLaser.endpoint.points[0]
+        let secondPoint = Level.NormalizedPoint(x: firstPoint.x + 0.2, y: firstPoint.y)
+
+        let updatedPath = Level.EndpointPath(
+            points: [firstPoint, secondPoint],
+            cycleSeconds: 2.0,  // Default animation cycle
+            t: rayLaser.endpoint.t
+        )
+
+        let updatedLaser = Level.RayLaser(
+            id: rayLaser.id,
+            color: rayLaser.color,
+            thickness: rayLaser.thickness,
+            cadence: rayLaser.cadence,
+            endpoint: updatedPath,
+            initialAngle: rayLaser.initialAngle,
+            rotationSpeed: rayLaser.rotationSpeed,
+            enabled: rayLaser.enabled
+        )
+
+        workingLevel.lasers[laserIndex] = updatedLaser
+        redoStack.removeAll()
+        applySnapshotToScene()
+    }
+
+    func removeRotorAnimationPoint(laserID: String) {
+        guard let laserIndex = workingLevel.lasers.firstIndex(where: { $0.id == laserID }),
+              let rayLaser = workingLevel.lasers[laserIndex] as? Level.RayLaser,
+              rayLaser.endpoint.points.count > 1 else { return }
+
+        pushUndoState()
+
+        // Keep only the first point
+        let updatedPath = Level.EndpointPath(
+            points: [rayLaser.endpoint.points[0]],
+            cycleSeconds: nil,
+            t: 0
+        )
+
+        let updatedLaser = Level.RayLaser(
+            id: rayLaser.id,
+            color: rayLaser.color,
+            thickness: rayLaser.thickness,
+            cadence: rayLaser.cadence,
+            endpoint: updatedPath,
+            initialAngle: rayLaser.initialAngle,
+            rotationSpeed: rayLaser.rotationSpeed,
+            enabled: rayLaser.enabled
+        )
+
+        workingLevel.lasers[laserIndex] = updatedLaser
         redoStack.removeAll()
         applySnapshotToScene()
     }

@@ -45,6 +45,8 @@ final class LevelEditorScene: LevelSceneBase {
         // Update handle position during drag
         if let handle = draggingHandle {
             handle.position = location
+            // Update connected lines in real-time
+            updateLinesForHandle(handle)
         }
     }
 
@@ -130,5 +132,138 @@ final class LevelEditorScene: LevelSceneBase {
         }
         draggingHandle = nil
         dragStartPosition = nil
+    }
+
+    private func updateLinesForHandle(_ handle: PathPointHandleNode) {
+        guard let laserID = handle.laserID, let pointIndex = handle.pointIndex else { return }
+
+        // Find which lines connect to this handle
+        // We need to update lines that connect this point to adjacent points
+        guard let laser = level.lasers.first(where: { $0.id == laserID }) else { return }
+
+        // Calculate which lines need updating based on the laser type and point index
+        var lineIndicesToUpdate: [Int] = []
+        var lineIndex = 0
+
+        for currentLaser in level.lasers {
+            if let rayLaser = currentLaser as? Level.RayLaser {
+                let pointCount = rayLaser.endpoint.points.count
+                if currentLaser.id == laserID && pointCount > 1 {
+                    // This is the laser being dragged
+                    // Update line before this point (if exists)
+                    if pointIndex > 0 {
+                        lineIndicesToUpdate.append(lineIndex + pointIndex - 1)
+                    }
+                    // Update line after this point (if exists)
+                    if pointIndex < pointCount - 1 {
+                        lineIndicesToUpdate.append(lineIndex + pointIndex)
+                    }
+                }
+                // Advance line index for this laser's lines
+                if pointCount > 1 {
+                    lineIndex += pointCount - 1
+                }
+            } else if let segmentLaser = currentLaser as? Level.SegmentLaser {
+                let startCount = segmentLaser.startEndpoint.points.count
+                let endCount = segmentLaser.endEndpoint.points.count
+
+                if currentLaser.id == laserID {
+                    if pointIndex >= 0 && startCount > 1 {
+                        // Start endpoint
+                        if pointIndex > 0 {
+                            lineIndicesToUpdate.append(lineIndex + pointIndex - 1)
+                        }
+                        if pointIndex < startCount - 1 {
+                            lineIndicesToUpdate.append(lineIndex + pointIndex)
+                        }
+                    } else if pointIndex < 0 && endCount > 1 {
+                        // End endpoint (negative index)
+                        let actualIndex = -(pointIndex + 1)
+                        let endLineStartIndex = lineIndex + (startCount > 1 ? startCount - 1 : 0)
+                        if actualIndex > 0 {
+                            lineIndicesToUpdate.append(endLineStartIndex + actualIndex - 1)
+                        }
+                        if actualIndex < endCount - 1 {
+                            lineIndicesToUpdate.append(endLineStartIndex + actualIndex)
+                        }
+                    }
+                }
+
+                // Advance line index for this laser's lines
+                if startCount > 1 {
+                    lineIndex += startCount - 1
+                }
+                if endCount > 1 {
+                    lineIndex += endCount - 1
+                }
+            }
+        }
+
+        // Update the identified lines with the handle's current position
+        for index in lineIndicesToUpdate {
+            if index < pathPointLines.count {
+                updateLineAtIndex(index, forHandle: handle)
+            }
+        }
+    }
+
+    private func updateLineAtIndex(_ index: Int, forHandle handle: PathPointHandleNode) {
+        guard let laserID = handle.laserID, let pointIndex = handle.pointIndex else { return }
+        guard let laser = level.lasers.first(where: { $0.id == laserID }) else { return }
+        guard let transform = layoutTransform else { return }
+
+        let line = pathPointLines[index]
+
+        // Determine which endpoints the line connects
+        if let rayLaser = laser as? Level.RayLaser {
+            let points = rayLaser.endpoint.points
+            guard pointIndex >= 0 && pointIndex < points.count else { return }
+
+            // Determine if this line connects to the previous or next point
+            let lineConnectsToPrevious = pointIndex > 0
+            let lineConnectsToNext = pointIndex < points.count - 1
+
+            if lineConnectsToPrevious && index == getLineIndexBefore(laserID, pointIndex: pointIndex) {
+                // Line from previous point to this point
+                let start = transform.point(from: points[pointIndex - 1])
+                let end = handle.position
+                let path = CGMutablePath()
+                path.move(to: start)
+                path.addLine(to: end)
+                line.path = path
+            } else if lineConnectsToNext {
+                // Line from this point to next point
+                let start = handle.position
+                let end = transform.point(from: points[pointIndex + 1])
+                let path = CGMutablePath()
+                path.move(to: start)
+                path.addLine(to: end)
+                line.path = path
+            }
+        }
+        // Similar logic would be needed for segment lasers, but keeping it simple for now
+    }
+
+    private func getLineIndexBefore(_ laserID: String, pointIndex: Int) -> Int {
+        // Calculate the line index for the line before this point
+        var lineIndex = 0
+        for laser in level.lasers {
+            if laser.id == laserID {
+                return lineIndex + pointIndex - 1
+            }
+            if let rayLaser = laser as? Level.RayLaser {
+                if rayLaser.endpoint.points.count > 1 {
+                    lineIndex += rayLaser.endpoint.points.count - 1
+                }
+            } else if let segmentLaser = laser as? Level.SegmentLaser {
+                if segmentLaser.startEndpoint.points.count > 1 {
+                    lineIndex += segmentLaser.startEndpoint.points.count - 1
+                }
+                if segmentLaser.endEndpoint.points.count > 1 {
+                    lineIndex += segmentLaser.endEndpoint.points.count - 1
+                }
+            }
+        }
+        return lineIndex
     }
 }

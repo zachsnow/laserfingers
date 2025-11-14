@@ -553,6 +553,19 @@ private struct ObjectSettingsSheet: View {
                         defaultValue: state.initialAngleDegrees.wrappedValue ?? 0,
                         format: .number.precision(.fractionLength(1))
                     )
+
+                    // Animation controls
+                    if let laser = viewModel.workingLevel.lasers.first(where: { $0.id == state.laserID.wrappedValue }) as? Level.RayLaser {
+                        if laser.endpoint.points.count == 1 {
+                            Button("Add Animation Point") {
+                                viewModel.addRotorAnimationPoint(laserID: state.laserID.wrappedValue)
+                            }
+                        } else if laser.endpoint.points.count > 1 {
+                            Button("Remove Animation", role: .destructive) {
+                                viewModel.removeRotorAnimationPoint(laserID: state.laserID.wrappedValue)
+                            }
+                        }
+                    }
                 }
             case .segment:
                 EmptyView()
@@ -653,10 +666,11 @@ private struct ObjectSettingsSheet: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button {
-                        if let firstLaser = viewModel.workingLevel.lasers.first {
+                        let currentLaserIDs = Set(action.lasers)
+                        if let firstAvailableLaser = viewModel.workingLevel.lasers.first(where: { !currentLaserIDs.contains($0.id) }) {
                             var effects = state.effects.wrappedValue
                             var lasers = effects[index].action.lasers
-                            lasers.append(firstLaser.id)
+                            lasers.append(firstAvailableLaser.id)
                             effects[index] = Level.Button.Effect(
                                 trigger: effects[index].trigger,
                                 action: Level.Button.Effect.Action(kind: effects[index].action.kind, lasers: lasers)
@@ -667,7 +681,7 @@ private struct ObjectSettingsSheet: View {
                         Image(systemName: "plus.circle.fill")
                     }
                     .buttonStyle(.borderless)
-                    .disabled(viewModel.workingLevel.lasers.isEmpty)
+                    .disabled(viewModel.workingLevel.lasers.isEmpty || Set(action.lasers).count >= viewModel.workingLevel.lasers.count)
                 }
 
                 ForEach(Array(action.lasers.enumerated()), id: \.offset) { laserIndex, laserID in
@@ -712,11 +726,15 @@ private struct ObjectSettingsSheet: View {
     }
 
     private func addEffect(to state: Binding<LevelEditorViewModel.ButtonSettingsState>) {
+        // Pick the first laser not already used in any effect
+        let usedLaserIDs = Set(state.effects.wrappedValue.flatMap { $0.action.lasers })
+        let firstAvailableLaser = viewModel.workingLevel.lasers.first { !usedLaserIDs.contains($0.id) }
+
         let newEffect = Level.Button.Effect(
             trigger: .touchStarted,
             action: Level.Button.Effect.Action(
                 kind: .turnOnLasers,
-                lasers: []
+                lasers: firstAvailableLaser.map { [$0.id] } ?? []
             )
         )
         state.effects.wrappedValue.append(newEffect)
