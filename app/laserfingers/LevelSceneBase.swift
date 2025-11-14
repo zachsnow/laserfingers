@@ -1181,29 +1181,16 @@ class BaseLaserNode: SKNode, LaserObstacle {
     
     private func setupNodes() {
         // Glow layer (behind beam)
-        glowShell.fillColor = color.withAlphaComponent(0.4)
-        glowShell.strokeColor = color.withAlphaComponent(0.18)
+        glowShell.fillColor = color.withAlphaComponent(0.5)
+        glowShell.strokeColor = color.withAlphaComponent(0.25)
         glowShell.blendMode = .add
         glowShell.zPosition = -1
         addChild(glowShell)
 
-        // Bloom/blur layer (between glow and beam)
-        bloomShape.fillColor = color.withAlphaComponent(0.6)
-        bloomShape.strokeColor = color.withAlphaComponent(0.25)
-        bloomShape.lineWidth = 0
-        bloomShape.glowWidth = 0
-        bloomNode.addChild(bloomShape)
-        bloomNode.shouldEnableEffects = true
-        bloomNode.shouldRasterize = true
-        bloomNode.shouldCenterFilter = true
-        bloomNode.blendMode = .add
-        bloomNode.zPosition = -0.5
-        addChild(bloomNode)
-
-        // Main beam (on top)
+        // Main beam (on top) - glowWidth will be adjusted based on blur setting
         beam.fillColor = color
         beam.strokeColor = color.withAlphaComponent(0.85)
-        beam.glowWidth = 0
+        beam.glowWidth = 0  // Will be set dynamically based on blur
         beam.blendMode = .add
         addChild(beam)
     }
@@ -1215,10 +1202,7 @@ class BaseLaserNode: SKNode, LaserObstacle {
     }
 
     private func updateBlurVisibility() {
-        let shouldShow = firingState && blurEffectsEnabled
-        bloomNode.isHidden = !shouldShow
-        bloomNode.shouldEnableEffects = shouldShow
-        bloomNode.isPaused = !shouldShow
+        // Blur effect is handled by adjusting glowWidth in configureLineLaser
     }
     
     var areAfterimagesEnabled: Bool {
@@ -1232,24 +1216,16 @@ class BaseLaserNode: SKNode, LaserObstacle {
         path.addLine(to: end)
 
         beam.path = path.copy(strokingWithWidth: thickness, lineCap: .round, lineJoin: .round, miterLimit: 16)
-        beam.glowWidth = thickness * 2.2
+        // Adjust beam glow based on blur setting
+        beam.glowWidth = blurEffectsEnabled ? thickness * 3.5 : 0
 
         let glowInset = thickness * 0.6
         glowShell.path = path.copy(strokingWithWidth: thickness + glowInset, lineCap: .round, lineJoin: .round, miterLimit: 16)
-        glowShell.glowWidth = thickness * 1.5
+        glowShell.glowWidth = blurEffectsEnabled ? thickness * 1.5 : 0
 
-        bloomShape.path = beam.path
-        bloomShape.position = .zero
-
-        let blurRadius = max(thickness * 1.5, 6)
-        updateBloomFilter(radius: blurRadius)
-
-        bloomNode.position = .zero
-        bloomNode.zRotation = 0
+        // Only reset positions, not rotations - child nodes should inherit parent rotation
         glowShell.position = .zero
-        glowShell.zRotation = 0
         beam.position = .zero
-        beam.zRotation = 0
     }
 }
 
