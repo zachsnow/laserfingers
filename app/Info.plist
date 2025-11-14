@@ -57,5 +57,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>BuildTimestamp</key>
+	<string>$(BUILD_TIMESTAMP)</string>
 </dict>
 </plist>

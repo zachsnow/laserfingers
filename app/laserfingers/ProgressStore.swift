@@ -5,6 +5,39 @@ struct GameSettings: Codable {
     var hapticsEnabled: Bool = true
     var advancedModeEnabled: Bool = false
     var infiniteSlotsEnabled: Bool = false
+    var glowEnabled: Bool = true
+    var blurEnabled: Bool = true
+
+    init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case soundEnabled
+        case hapticsEnabled
+        case advancedModeEnabled
+        case infiniteSlotsEnabled
+        case glowEnabled
+        case blurEnabled
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        soundEnabled = try container.decodeIfPresent(Bool.self, forKey: .soundEnabled) ?? true
+        hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? true
+        advancedModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .advancedModeEnabled) ?? false
+        infiniteSlotsEnabled = try container.decodeIfPresent(Bool.self, forKey: .infiniteSlotsEnabled) ?? false
+        glowEnabled = try container.decodeIfPresent(Bool.self, forKey: .glowEnabled) ?? true
+        blurEnabled = try container.decodeIfPresent(Bool.self, forKey: .blurEnabled) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(soundEnabled, forKey: .soundEnabled)
+        try container.encode(hapticsEnabled, forKey: .hapticsEnabled)
+        try container.encode(advancedModeEnabled, forKey: .advancedModeEnabled)
+        try container.encode(infiniteSlotsEnabled, forKey: .infiniteSlotsEnabled)
+        try container.encode(glowEnabled, forKey: .glowEnabled)
+        try container.encode(blurEnabled, forKey: .blurEnabled)
+    }
 }
 
 final class ProgressStore {

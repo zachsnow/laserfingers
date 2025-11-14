@@ -78,17 +78,18 @@
       "id": "central-rotor",
       "color": "#F9F871",
       "thickness": 0.02,
-      "kind": {
-        "type": "rotor",
-        "rotor": {
-          "center": {
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
             "x": 0.0,
             "y": 0.0
-          },
-          "speedDegreesPerSecond": 180,
-          "initialAngleDegrees": 0
-        }
-      }
+          }
+        ],
+        "cycleSeconds": null
+      },
+      "rotationSpeed": 3.141592653589793
     }
   ],
   "unlocks": []

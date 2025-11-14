@@ -4,5 +4,6 @@ DerivedData/
 **/.DS_Store
 **/build/
 *~
+app/Laserfingers.xcodeproj/project.xcworkspace/xcuserdata
 .module-cache
 .swift-module-cache

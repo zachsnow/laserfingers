@@ -6,7 +6,10 @@
   "buttons": [
     {
       "id": "core-switch",
-      "position": { "x": 0.0, "y": 0.0 },
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
       "timing": {
         "chargeSeconds": 1.7,
         "holdSeconds": 0.15,
@@ -26,7 +29,10 @@
             "type": "circle",
             "radius": 0.26
           },
-          "offset": { "x": 0.0, "y": 0.0 }
+          "offset": {
+            "x": 0.0,
+            "y": 0.0
+          }
         }
       ],
       "effects": []
@@ -37,53 +43,85 @@
       "id": "diag-green",
       "color": "#2AD863",
       "thickness": 0.016,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": { "x": -1.0, "y": -1.0 },
-          "end": { "x": 1.0, "y": 1.0 },
-          "sweepSeconds": 2.6
-        }
-      }
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
+            "x": -1.0,
+            "y": -1.0
+          },
+          {
+            "x": 1.0,
+            "y": 1.0
+          }
+        ],
+        "cycleSeconds": 5.2
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "diag-blue",
       "color": "#4CC9F0",
       "thickness": 0.016,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": { "x": 1.0, "y": -1.0 },
-          "end": { "x": -1.0, "y": 1.0 },
-          "sweepSeconds": 3.0
-        }
-      }
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
+            "x": 1.0,
+            "y": -1.0
+          },
+          {
+            "x": -1.0,
+            "y": 1.0
+          }
+        ],
+        "cycleSeconds": 6.0
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "lane-left",
       "color": "#F9F871",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": { "x": -1.0, "y": 0.25 },
-          "end": { "x": 1.0, "y": 0.25 },
-          "sweepSeconds": 2.1
-        }
-      }
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
+            "x": -1.0,
+            "y": 0.25
+          },
+          {
+            "x": 1.0,
+            "y": 0.25
+          }
+        ],
+        "cycleSeconds": 4.2
+      },
+      "rotationSpeed": 0.0
     },
     {
       "id": "lane-right",
       "color": "#C77DFF",
       "thickness": 0.018,
-      "kind": {
-        "type": "sweeper",
-        "sweeper": {
-          "start": { "x": 1.0, "y": -0.25 },
-          "end": { "x": -1.0, "y": -0.25 },
-          "sweepSeconds": 2.8
-        }
-      }
+      "enabled": true,
+      "type": "ray",
+      "endpoint": {
+        "points": [
+          {
+            "x": 1.0,
+            "y": -0.25
+          },
+          {
+            "x": -1.0,
+            "y": -0.25
+          }
+        ],
+        "cycleSeconds": 5.6
+      },
+      "rotationSpeed": 0.0
     }
   ],
   "backgroundImage": "../../Images/bg.jpg",

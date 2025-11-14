@@ -26,7 +26,7 @@ struct LaserfingersApp: App {
 }
 
 // MARK: - Coordinator & Models
-
+ 
 final class AppCoordinator: ObservableObject {
     enum Screen {
         case mainMenu
@@ -35,6 +35,7 @@ final class AppCoordinator: ObservableObject {
         case levelSelect
         case gameplay
         case advancedMenu
+        case levelEditor
     }
     @Published var screen: Screen = .mainMenu
     @Published var settings: GameSettings {
@@ -44,11 +45,13 @@ final class AppCoordinator: ObservableObject {
     @Published var activeGame: GameRuntime?
     @Published var loadErrorMessage: String?
     @Published var importSheetState: ImportSheetState?
+    @Published var levelEditorViewModel: LevelEditorViewModel?
     
     private let progressStore = ProgressStore()
     private var levelPacks: [LevelPack] = []
     private var levels: [Level] = []
     private var cancellables: Set<AnyCancellable> = []
+    private var screenBeforeLevelEditor: Screen?
     
     init() {
         let storedSettings = progressStore.loadSettings()
@@ -87,6 +90,20 @@ final class AppCoordinator: ObservableObject {
     func showAdvancedMenu() {
         guard settings.advancedModeEnabled else { return }
         screen = .advancedMenu
+    }
+    
+    func openLevelEditor(with level: Level?) {
+        guard settings.advancedModeEnabled else { return }
+        screenBeforeLevelEditor = screen
+        levelEditorViewModel = LevelEditorViewModel(level: level, settings: settings)
+        screen = .levelEditor
+    }
+    
+    func exitLevelEditor() {
+        levelEditorViewModel = nil
+        let destination = screenBeforeLevelEditor ?? .mainMenu
+        screenBeforeLevelEditor = nil
+        screen = destination
     }
     
     func showLevelSelect() {
@@ -237,6 +254,7 @@ final class AppCoordinator: ObservableObject {
         levelProgress = levels.enumerated().map { index, level in
             LevelProgress(level: level, state: index == 0 ? .unlocked : .locked)
         }
+        settings = GameSettings()
         persistProgress()
         activeGame = nil
         screen = .mainMenu
@@ -388,12 +406,7 @@ struct LevelProgress: Identifiable {
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             let rawValue = try container.decode(String.self)
-            switch rawValue {
-            case "current", "incomplete":
-                self = .unlocked
-            default:
-                self = State(rawValue: rawValue) ?? .locked
-            }
+            self = State(rawValue: rawValue) ?? .locked
         }
         
         func encode(to encoder: Encoder) throws {

@@ -96,18 +96,25 @@
       "id": "ceiling-barrier",
       "color": "#FF6B6B",
       "thickness": 0.52,
-      "kind": {
-        "type": "segment",
-        "segment": {
-          "start": {
+      "enabled": true,
+      "type": "segment",
+      "startEndpoint": {
+        "points": [
+          {
             "x": -1.0,
             "y": 0.5
-          },
-          "end": {
+          }
+        ],
+        "cycleSeconds": null
+      },
+      "endEndpoint": {
+        "points": [
+          {
             "x": 1.0,
             "y": 0.5
           }
-        }
+        ],
+        "cycleSeconds": null
       }
     }
   ],
