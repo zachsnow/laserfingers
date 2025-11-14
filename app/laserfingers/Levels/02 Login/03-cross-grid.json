@@ -53,20 +53,22 @@
       "thickness": 0.016,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -1.0,
-            "y": -1.0
-          },
-          {
-            "x": 1.0,
-            "y": 1.0
-          }
-        ],
-        "cycleSeconds": 5.2
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -1.0,
+              "y": -1.0
+            },
+            {
+              "x": 1.0,
+              "y": 1.0
+            }
+          ],
+          "cycleSeconds": 5.2
+        }
+      ]
     },
     {
       "id": "diag-blue",
@@ -74,20 +76,22 @@
       "thickness": 0.016,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": 1.0,
-            "y": -1.0
-          },
-          {
-            "x": -1.0,
-            "y": 1.0
-          }
-        ],
-        "cycleSeconds": 6.0
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": 1.0,
+              "y": -1.0
+            },
+            {
+              "x": -1.0,
+              "y": 1.0
+            }
+          ],
+          "cycleSeconds": 6.0
+        }
+      ]
     },
     {
       "id": "lane-left",
@@ -95,20 +99,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -1.0,
-            "y": 0.25
-          },
-          {
-            "x": 1.0,
-            "y": 0.25
-          }
-        ],
-        "cycleSeconds": 4.2
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -1.0,
+              "y": 0.25
+            },
+            {
+              "x": 1.0,
+              "y": 0.25
+            }
+          ],
+          "cycleSeconds": 4.2
+        }
+      ]
     },
     {
       "id": "lane-right",
@@ -116,20 +122,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": 1.0,
-            "y": -0.25
-          },
-          {
-            "x": -1.0,
-            "y": -0.25
-          }
-        ],
-        "cycleSeconds": 5.6
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": 1.0,
+              "y": -0.25
+            },
+            {
+              "x": -1.0,
+              "y": -0.25
+            }
+          ],
+          "cycleSeconds": 5.6
+        }
+      ]
     }
   ],
   "backgroundImage": "../../Images/bg.jpg",

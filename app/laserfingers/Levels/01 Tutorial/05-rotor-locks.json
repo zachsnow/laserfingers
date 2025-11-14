@@ -96,16 +96,18 @@
       "thickness": 0.02,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": 0.0,
-            "y": 0.0
-          }
-        ],
-        "cycleSeconds": null
-      },
-      "rotationSpeed": 3.141592653589793
+      "rotationSpeed": 3.141592653589793,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": 0.0,
+              "y": 0.0
+            }
+          ],
+          "cycleSeconds": null
+        }
+      ]
     }
   ],
   "unlocks": []

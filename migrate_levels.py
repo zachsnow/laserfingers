@@ -26,7 +26,7 @@ def migrate_laser(laser):
     """Migrate laser to use endpoints array."""
     laser_type = laser.get("type")
 
-    if laser_type in ["sweeper", "rotor"]:
+    if laser_type == "ray":
         # Ray lasers: endpoint -> endpoints: [endpoint]
         if "endpoint" in laser and "endpoints" not in laser:
             laser["endpoints"] = [laser["endpoint"]]

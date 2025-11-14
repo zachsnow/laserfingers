@@ -53,20 +53,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -1.0,
-            "y": 0.0
-          },
-          {
-            "x": 1.0,
-            "y": 0.0
-          }
-        ],
-        "cycleSeconds": 3.6
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -1.0,
+              "y": 0.0
+            },
+            {
+              "x": 1.0,
+              "y": 0.0
+            }
+          ],
+          "cycleSeconds": 3.6
+        }
+      ]
     },
     {
       "id": "lane-medium",
@@ -74,20 +76,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -1.0,
-            "y": 0.15
-          },
-          {
-            "x": 1.0,
-            "y": 0.15
-          }
-        ],
-        "cycleSeconds": 4.8
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -1.0,
+              "y": 0.15
+            },
+            {
+              "x": 1.0,
+              "y": 0.15
+            }
+          ],
+          "cycleSeconds": 4.8
+        }
+      ]
     },
     {
       "id": "lane-slow",
@@ -95,20 +99,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -1.0,
-            "y": -0.15
-          },
-          {
-            "x": 1.0,
-            "y": -0.15
-          }
-        ],
-        "cycleSeconds": 6.2
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -1.0,
+              "y": -0.15
+            },
+            {
+              "x": 1.0,
+              "y": -0.15
+            }
+          ],
+          "cycleSeconds": 6.2
+        }
+      ]
     }
   ],
   "backgroundImage": "../../Images/bg.jpg",

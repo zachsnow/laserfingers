@@ -54,20 +54,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -0.95,
-            "y": 0.2
-          },
-          {
-            "x": 0.95,
-            "y": 0.2
-          }
-        ],
-        "cycleSeconds": 4.8
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -0.95,
+              "y": 0.2
+            },
+            {
+              "x": 0.95,
+              "y": 0.2
+            }
+          ],
+          "cycleSeconds": 4.8
+        }
+      ]
     },
     {
       "id": "intro-sweeper-2",
@@ -75,20 +77,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -0.95,
-            "y": 0.2
-          },
-          {
-            "x": 0,
-            "y": 0.2
-          }
-        ],
-        "cycleSeconds": 4.8
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -0.95,
+              "y": 0.2
+            },
+            {
+              "x": 0,
+              "y": 0.2
+            }
+          ],
+          "cycleSeconds": 4.8
+        }
+      ]
     },
     {
       "id": "intro-sweeper-3",
@@ -96,20 +100,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -0.95,
-            "y": 0.2
-          },
-          {
-            "x": 0,
-            "y": 0.2
-          }
-        ],
-        "cycleSeconds": 4.8
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -0.95,
+              "y": 0.2
+            },
+            {
+              "x": 0,
+              "y": 0.2
+            }
+          ],
+          "cycleSeconds": 4.8
+        }
+      ]
     },
     {
       "id": "intro-sweeper-4",
@@ -117,20 +123,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -0.95,
-            "y": -1
-          },
-          {
-            "x": 0.95,
-            "y": -1
-          }
-        ],
-        "cycleSeconds": 4.8
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -0.95,
+              "y": -1
+            },
+            {
+              "x": 0.95,
+              "y": -1
+            }
+          ],
+          "cycleSeconds": 4.8
+        }
+      ]
     },
     {
       "id": "intro-sweeper-5",
@@ -138,20 +146,22 @@
       "thickness": 0.018,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -0.95,
-            "y": 1
-          },
-          {
-            "x": 0.95,
-            "y": -1
-          }
-        ],
-        "cycleSeconds": 4.8
-      },
-      "rotationSpeed": 0.0
+      "rotationSpeed": 0.0,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -0.95,
+              "y": 1
+            },
+            {
+              "x": 0.95,
+              "y": -1
+            }
+          ],
+          "cycleSeconds": 4.8
+        }
+      ]
     }
   ],
   "unlocks": []

@@ -54,20 +54,22 @@
       "thickness": 0.015,
       "enabled": true,
       "type": "ray",
-      "endpoint": {
-        "points": [
-          {
-            "x": -0.8,
-            "y": 0.5
-          },
-          {
-            "x": 0.8,
-            "y": 0.5
-          }
-        ],
-        "cycleSeconds": 6.0
-      },
-      "rotationSpeed": 0.5
+      "rotationSpeed": 0.5,
+      "endpoints": [
+        {
+          "points": [
+            {
+              "x": -0.8,
+              "y": 0.5
+            },
+            {
+              "x": 0.8,
+              "y": 0.5
+            }
+          ],
+          "cycleSeconds": 6.0
+        }
+      ]
     },
     {
       "id": "moving-segment",
