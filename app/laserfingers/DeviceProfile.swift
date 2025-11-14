@@ -15,7 +15,11 @@ enum DeviceProfile {
         switch idiom {
         case .pad:
             let maxNative = max(UIScreen.main.nativeBounds.width, UIScreen.main.nativeBounds.height)
-            if maxNative <= 2300 {
+            // Threshold distinguishes iPad Mini (≤2266 points) from larger iPads
+            // iPad Mini 6: 2266 x 1488 native pixels
+            // iPad Air/Pro: 2360+ x 1640+ native pixels
+            let iPadMiniMaxNativePixels: CGFloat = 2300
+            if maxNative <= iPadMiniMaxNativePixels {
                 return .iPadMini
             } else {
                 return .iPad
